@@ -13,11 +13,5 @@ def shortest_path(src, dst):
     return helper.to_magellan_path(path)
 
 
-def peer(swport):
-    link = [link for link in topo.links if swport in link]
-    link[0].remove(swport)
-    return link[0][0]
-
-
 export('shortest_path', shortest_path)
 export('peer', peer)
