@@ -43,7 +43,6 @@ magellan_program
 declaration
     : typeDeclaration
     | parserDeclaration
-    | deparserDeclaration
     | externDeclaration
     | functionDeclaration
     | variableDeclaration
