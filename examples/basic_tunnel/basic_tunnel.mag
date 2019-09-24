@@ -1,0 +1,32 @@
+#include <core.mag>
+#include <headers.mag>
+#incluee <parser.mag>
+
+extern path_t shortest_path(swport_t src, swpport_t dst);
+
+map<ip4Addr_t, bit<16>> ip_to_dstid;
+map<bit<16>, swport_t> dstid_to_swport;
+map<swport_t, macAddr_t> swport_to_mac;
+
+action fwd_action(headers_t hdr, path_ele_t path_ele) {
+  hdr.ethernet.srcAddr = hdr.ethernet.dstAddr;
+  hdr.ethernet.dstAddr = swport_to_mac[peer(path_ele.dst[0])];
+  hdr.ipv4.ttl--;
+}
+
+@label('external_ingress')
+void on_pkt(headers_t hdr, standard_metadata_t std_meta) {
+    auto dst_id = ip_to_dstid.lpm(hdr.ipv4.dst)
+    hdr.myTunnel.dst_id = dst_id;
+    hdr.myTunnel.setValid();
+    auto path = shortest_path(std_meta.ingress_swport, dstid_to_swport[dst_id]);
+    std_meta.egress_path = path.pop_back();
+    std_meta.egress_path_action = fwd_action;
+}
+
+
+@label('edge_inner_ingress')
+void on_pkt(headers_t hdr, standard_metadata_t std_meta) {
+    hdr.myTunnel.setInvalid()
+    std_meta.egress_path = shortest_path(std_meta.ingress_swport, dstid_to_swport[hdr.myTunnel.dst_id])
+}

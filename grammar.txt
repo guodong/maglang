@@ -1,0 +1,554 @@
+/************************************************************************************************
+description:
+    This document describes the grammar of magellan, mostly refered from P4 grammar and NPL design.
+
+notes:
+    IDENTIFIER: start with a letter or underscore, and contain letters, digits and underscores
+    TYPE_IDENTIFIER: identifier that denotes a type name
+    INTEGER: integer literals
+    STRING_LITERAL: string surrounded by ' or "
+    DONTCARE: a single underscore '_'
+    Keywords: such as 'IF'. By convention, each keyword terminal corresponds to a language keyword with the same spelling but using lowercase.
+      For example, the 'IF' terminal corresponds to the 'if' keyword.
+    other constant terminals appear in these rules:
+        - SHL is <<
+        - LE is <=
+        - GE is >=
+        - NE is !=
+        - EQ is ==
+        - PP is ++
+        - AND is &&
+        - OR is ||
+        - MASK is &&&
+        - RANGE is ..
+        - DONTCARE is _
+
+magellan reserved keyword list:
+    1. types: bit varbit void int bool map set list tuple enum struct union auto true false const typedef
+    2. header: header
+    3. parser: parser select transition state
+    4. control: if else switch in
+    5. function: extern in out inout return
+
+magellan reserved annotations:
+    1. label
+************************************************************************************************/
+
+/********** MAGELLAN PROGRAM **********/
+magellan_program
+    : /* empty */
+    | magellan_program declaration
+    ;
+
+declaration
+    : typeDeclaration
+    | parserDeclaration
+    | deparserDeclaration
+    | externDeclaration
+    | functionDeclaration
+    | variableDeclaration
+    | actionDeclaration
+    | onPacketDeclaration
+    ;
+
+/* common items */
+name
+    : IDENTIFIER
+    | TYPE_IDENTIFIER
+    ;
+
+optAnnotations
+    : /* empty */
+    | annotations
+    ;
+
+annotations
+    : annotation
+    | annotations annotation
+    ;
+
+annotation
+    : '@' name
+    | '@' name '(' expressionList ')'
+    | '@' name '(' keyValueList ')'
+    ;
+
+parameterList
+    : /* empty */
+    | nonEmptyParameterList
+    ;
+
+nonEmptyParameterList
+    : parameter
+    | nonEmptyParameterList ',' parameter
+    ;
+
+parameter
+    : optAnnotations direction typeRef name
+    | optAnnotations direction typeRef name '=' expression
+    ;
+
+direction
+    : IN
+    | OUT
+    | INOUT
+    | /* empty */
+    ;
+
+dotPrefix
+    : '.'
+    ;
+
+/************************** TYPES ****************************/
+typeDeclaration
+    : baseType
+    | derivedTypeDeclaration
+    | typedefDeclaration
+    ;
+
+baseType
+    : BOOL
+    | BIT
+    | BIT '<' INTEGER '>'
+    | INT '<' INTEGER '>'
+    | VARBIT '<' INTEGER '>'
+    | BIT '<' '(' expression ')' '>'
+    | INT '<' '(' expression ')' '>'
+    | VARBIT '<' '(' expression ')' '>'
+    | AUTO
+    ;
+
+derivedTypeDeclaration
+    : mapDeclaration
+    | setDeclaration
+    | listDeclaration
+    | unionDeclaration
+    | structTypeDeclaration
+    | headerTypeDeclaration
+    | enumDeclaration
+    | tupleDeclaration
+    ;
+
+mapDeclaration
+    : MAP '<' typeRef ',' typeRef '>'
+    ;
+
+typeRef
+    : baseType
+    | TYPE_IDENTIFIER
+    | specializedType
+    | headerStackType
+    ;
+
+headerStackType
+    : TYPE_IDENTIFIER '[' expression ']'
+    ;
+
+specializedType
+    : TYPE_IDENTIFIER '<' typeArgumentList '>'
+    ;
+
+typeArgumentList
+    : typeRef
+    | typeArgumentList ',' typeRef
+    ;
+
+setDeclaration
+    : SET '<' typeRef '>'
+    ;
+
+listDeclaration
+    : LIST '<' typeRef '>'
+    ;
+
+unionDeclaration
+    : UNION name '{' structFieldList '}'
+    ;
+
+structTypeDeclaration
+    : STRUCT name '{' structFieldList '}'
+    ;
+
+structFieldList
+    : /* empty */
+    | structFieldList structField
+    ;
+
+structField
+    : typeRef name ';'
+    ;
+
+headerTypeDeclaration
+    : optAnnotations HEADER name '{' structFieldList '}'
+    ;
+
+enumDeclaration
+    : ENUM name '{' identifierList '}'
+    | ENUM BIT '<' INTEGER '>' name '{' specifiedIdentifierList '}'
+    ;
+
+identifierList
+    : name
+    | identifierList ',' name
+    ;
+
+specifiedIdentifierList
+    : specifiedIdentifier
+    | specifiedIdentifierList ',' specifiedIdentifier
+    ;
+
+specifiedIdentifier
+    : name '=' initializer
+    ;
+
+tupleDeclaration
+    : TUPLE '<' typeArgumentList '>'
+    ;
+
+typedefDeclaration
+    : optAnnotations TYPEDEF typeRef name ';'
+    | optAnnotations TYPEDEF derivedTypeDeclaration name ';'
+    | optAnnotations TYPE typeRef name ';'
+    | optAnnotations TYPE derivedTypeDeclaration name ';'
+    ;
+
+typeOrVoid
+    : typeRef
+    | VOID
+    ;
+
+/**************************** PARSER ******************************/
+
+parserDeclaration
+    : parserTypeDeclaration '{' parserLocalElements parserStates '}'
+    ;
+
+parserTypeDeclaration
+    : PARSER name optTypeParameters '(' parameterList ')'
+    ;
+
+optTypeParameters
+    : /* empty */
+    | '<' typeParameterList '>'
+    ;
+
+typeParameterList
+    : name
+    | typeParameterList ',' name
+    ;
+
+parserLocalElements
+    : /* empty */
+    | parserLocalElements parserLocalElement
+    ;
+
+parserLocalElement
+    : constantDeclaration
+    | variableDeclaration
+    | valueSetDeclaration
+    ;
+
+parserStates
+    : parserState
+    | parserStates parserState
+    ;
+
+parserState
+    : STATE name '{' parserStatements transitionStatement '}'
+    ;
+
+parserStatements
+    : /* empty */
+    | parserStatements parserStatement
+    ;
+
+parserStatement
+    : assignmentOrMethodCallStatement
+    | parserBlockStatement
+    | constantDeclaration
+    | variableDeclaration
+    ;
+
+parserBlockStatement
+    : '{' parserStatements '}'
+    ;
+
+transitionStatement
+    : /* empty */
+    | TRANSITION stateExpression
+    ;
+
+stateExpression
+    : name ';'
+    | selectExpression
+    ;
+
+selectExpression
+    : SELECT '(' expressionList ')' '{' selectCaseList '}'
+    ;
+
+selectCaseList
+    : /* empty */
+    | selectCaseList selectCase
+    ;
+
+selectCase
+    : keysetExpression ':' name ';'
+    ;
+
+keysetExpression
+    : tupleKeysetExpression
+    | simpleKeysetExpression
+    ;
+
+tupleKeysetExpression
+    : '(' simpleKeysetExpression ',' simpleExpressionList ')'
+    ;
+
+simpleExpressionList
+    : simpleKeysetExpression
+    | simpleExpressionList ',' simpleKeysetExpression
+    ;
+
+simpleKeysetExpression
+    : expression
+    | DEFAULT
+    | DONTCARE
+    | expression MASK expression
+    | expression RANGE expression
+    ;
+
+valueSetDeclaration
+  : optAnnotations
+      VALUESET '<' baseType '>' '(' expression ')' name ';'
+  | optAnnotations
+      VALUESET '<' tupleDeclaration '>' '(' expression ')' name ';'
+  | optAnnotations
+      VALUESET '<' TYPE_IDENTIFIER '>' '(' expression ')' name ';'
+  ;
+
+/************************* VARIABLES *****************************/
+
+variableDeclaration
+    : annotations typeRef name optInitializer ';'
+    | typeRef name optInitializer ';'
+    ;
+
+constantDeclaration
+    : optAnnotations CONST typeRef name '=' initializer ';'
+    ;
+
+optInitializer
+    : /* empty */
+    | '=' initializer
+    ;
+
+initializer
+    : expression
+    ;
+
+/*************************** EXTERN *************************/
+
+externDeclaration
+    : optAnnotations EXTERN name optTypeParameters '{' methodPrototypes '}'
+    | optAnnotations EXTERN functionPrototype ';'
+    ;
+
+methodPrototypes
+    : /* empty */
+    | methodPrototypes methodPrototype
+    ;
+
+methodPrototype
+    : optAnnotations functionPrototype ';'
+    | optAnnotations TYPE_IDENTIFIER '(' parameterList ')' ';'
+
+functionPrototype
+    : typeOrVoid name optTypeParameters '(' parameterList ')'
+    ;
+
+/**************************** FUNCTION ******************************/
+
+functionDeclaration
+    : functionPrototype blockStatement
+    ;
+
+/************************* ACTION ********************************/
+
+actionDeclaration
+    : ACTION name '(' parameterList ')' blockStatement
+    ;
+
+
+/************************* ONPACKET ********************************/
+onPacketDeclaration
+    : '@label' '(' STRING_LITERAL ')' VOID name '(' parameterList ')' blockStatement
+
+/*************************** STATEMENTS *************************/
+
+blockStatement
+    : '{' statOrDeclList '}'
+    ;
+
+statOrDeclList
+    : /* empty */
+    | statOrDeclList statementOrDeclaration
+    ;
+
+statementOrDeclaration
+    : variableDeclaration
+    | constantDeclaration
+    | statement
+    ;
+
+statement
+    : assignmentOrMethodCallStatement
+    | conditionalStatement
+    | switchStatement
+    | blockStatement
+    | returnStatement
+    | emptyStatement
+    ;
+
+assignmentOrMethodCallStatement
+    : lvalue '='  expression ';'
+    | lvalue '(' argumentList ')' ';'
+    ;
+
+argumentList
+    : /* empty */
+    | nonEmptyArgList
+    ;
+
+nonEmptyArgList
+    : argument
+    | nonEmptyArgList ',' argument
+    ;
+
+argument
+    : expression
+    | name '=' expression
+    | DONTCARE
+    ;
+
+conditionalStatement
+    : IF '(' expression ')' statement
+    | IF '(' expression ')' statement ELSE statement
+    ;
+
+switchStatement
+    : SWITCH '(' expression ')' '{' switchCases '}'
+    ;
+
+switchCases
+    : /* empty */
+    | switchCases switchCase
+    ;
+
+switchCase
+    : switchLabel ':' blockStatement
+    | switchLabel ':'
+    ;
+
+switchLabel
+    : name
+    | DEFAULT
+    ;
+
+returnStatement
+    : RETURN ';'
+    | RETURN expression ';'
+    ;
+
+emptyStatement
+    : ';'
+    ;
+
+/************************* Expressions ****************************/
+expressionList
+    : /* empty */
+    | expression
+    | expressionList ',' expression
+    ;
+
+keyValuePair
+    : IDENTIFIER '=' expression
+    ;
+
+keyValueList
+    : keyValuePair
+    | keyValueList ',' keyValuePair
+    ;
+
+member
+    : name
+    ;
+
+lvalue
+    : name
+    | lvalue '.' member
+    | lvalue '[' expression ']'
+    | lvalue '[' expression ':' expression ']'
+    ;
+
+%left ','
+%nonassoc '?'
+%nonassoc ':'
+%left OR
+%left AND
+%left EQ NE
+%left '<' '>' LE GE
+%left '|'
+%left '^'
+%left '&'
+%left SHL
+%left PP '+' '-' '|+|' '|-|'
+%left '*' '/' '%'
+%right PREFIX
+%nonassoc ']' '(' '['
+%left '.'
+
+
+expression
+    : INTEGER
+    | TRUE
+    | FALSE
+    | STRING_LITERAL
+    | name
+    | dotPrefix name
+    | expression '[' expression ']'
+    | expression '[' expression ':' expression ']'
+    | '{' expressionList '}'
+    | '(' expression ')'
+    | '!' expression
+    | '~' expression
+    | '-' expression
+    | '+' expression
+    | TYPE_IDENTIFIER '.' member
+    | expression '.' member
+    | expression '*' expression
+    | expression '/' expression
+    | expression '%' expression
+    | expression '+' expression
+    | expression '-' expression
+    | expression '|+|' expression
+    | expression '|-|' expression
+    | expression SHL expression        // <<
+    | expression '>''>' expression     // check that >> are adjacent
+    | expression LE expression         // <=
+    | expression GE expression         // >=
+    | expression '<' expression
+    | expression '>' expression
+    | expression NE expression         // !=
+    | expression EQ expression         // ==
+    | expression '&' expression
+    | expression '^' expression
+    | expression '|' expression
+    | expression PP expression         // ++
+    | expression AND expression        // &&
+    | expression OR expression         // ||
+    | expression '?' expression ':' expression
+    | expression '<' realTypeArgumentList '>' '(' argumentList ')'
+    | expression '(' argumentList ')'
+    | '(' typeRef ')' expression
+    ;

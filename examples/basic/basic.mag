@@ -1,0 +1,40 @@
+/** dependencies include **/
+#include <core.mag>
+#include <headers.mag>
+#incluee <parser.mag>
+
+/** extern functions, impleneted in external codes **/
+extern path_t shortest_path(swport_t src, swpport_t dst);
+
+/** global data structures **/
+map<ip4Addr_t, swport_t> ip_to_swport;
+map<swport_t, macAddr_t> swport_to_mac;
+
+/** path action, will be performed on each or one of switches of path
+ ** pseudo code of procedure:
+ ** if std_meta.egress_path_action_mode == EACH:
+ **   for path_ele in std_meta.egress_path:
+ **     perform fwd_action(hdr, path_ele) on path_ele.switch
+ ** elif std_meta.egress_path_action_mode == ONCE:
+ **   path_ele = select one of path_ele in std_meta.egress_path
+ **   perform fwd_action(hdr, path_ele) on path_ele.switch
+ **/
+action fwd_action(headers_t hdr, path_ele_t path_ele) {
+  hdr.ethernet.srcAddr = hdr.ethernet.dstAddr;
+  hdr.ethernet.dstAddr = swport_to_mac[peer(path_ele.dst[0])];
+  hdr.ipv4.ttl--;
+ }
+
+/** main on_packet function
+ ** arguments:
+ ** 1. parsed packet header struct
+ ** 2. per packet scope data structure
+ ** 3. standard metadata
+ **/
+@label('external_ingress')
+void on_pkt(headers_t hdr, metadata_t meta, standard_metadata_t std_meta) {
+    auto path = shortest_path(std_meta.ingress_swport, ip_to_swport.lpm(hdr.ipv4.dst));
+    std_meta.egress_path = path
+    std_meta.egress_path_action = fwd_action
+}
+

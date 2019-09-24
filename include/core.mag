@@ -1,0 +1,56 @@
+
+/*** common types ***/
+typedef bit<32> swid_t;
+typedef bit<9> portid_t;
+typedef tuple<swid_t, portid_t> swport_t;
+
+
+/*** path type definition ***/
+enum path_mode_t {
+    ANY,  // forward to one of the dst swport
+    ALL   // multicast to all of the dst swport
+}
+
+/** defines forward behaivor of switch, when pkt comes from src, send pkt to dst according to path_mode **/
+struct path_ele_t {
+    path_mode_t mode;
+    set<swport_t> src;
+    set<swport_t> dst;
+}
+
+typedef list<path_ele_t> path_t;
+
+/** extern object for parser **/
+extern packet_in {
+
+    void extract<T>(out T hdr);
+
+    void extract<T>(out T variableSizeHeader,
+                    in bit<32> variableFieldSizeInBits);
+
+    T lookahead<T>();
+    void advance(in bit<32> sizeInBits);
+    bit<32> length();
+}
+
+/***** standard metadata *****/
+
+/* indicate the execute mode of egress_path_action
+ * ONCE: only execute once
+ * EACH: execute on each node of path
+ */
+enum egress_path_action_mode_t {
+    ONCE,
+    EACH
+}
+
+struct standard_metadata_t {
+    swport_t ingress_swport;        // ingress switch and port
+    path_t  egress_path;            // the egress forwarding path
+    action_t egress_path_action;    // the forward action to take when forwarding along egress_path
+    egress_path_action_mode_t egress_path_action_mode;  // action mode see: egress_path_action_mode_t
+    bit<32> packet_length;
+}
+
+/** extern functions, bellow should be implement by magellan library **/
+extern swport_t peer(swport_t swport);
