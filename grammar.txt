@@ -50,7 +50,7 @@ declaration
     | onPacketDeclaration
     ;
 
-/* common items */
+/****** COMMON ITEMS ******/
 name
     : IDENTIFIER
     | TYPE_IDENTIFIER
@@ -83,8 +83,8 @@ nonEmptyParameterList
     ;
 
 parameter
-    : optAnnotations direction typeRef name
-    | optAnnotations direction typeRef name '=' expression
+    : direction typeRef name
+    | direction typeRef name '=' expression
     ;
 
 direction
@@ -178,7 +178,7 @@ structField
     ;
 
 headerTypeDeclaration
-    : optAnnotations HEADER name '{' structFieldList '}'
+    : HEADER name '{' structFieldList '}'
     ;
 
 enumDeclaration

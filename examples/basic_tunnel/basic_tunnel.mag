@@ -15,18 +15,18 @@ action fwd_action(headers_t hdr, path_ele_t path_ele) {
 }
 
 @label('external_ingress')
-void on_pkt(headers_t hdr, standard_metadata_t std_meta) {
-    auto dst_id = ip_to_dstid.lpm(hdr.ipv4.dst)
+void on_pkt(inout packet_t<headers_t, metadata_t> pkt) {
+    auto dst_id = ip_to_dstid.lpm(pkt.hdr.ipv4.dst)
     hdr.myTunnel.dst_id = dst_id;
     hdr.myTunnel.setValid();
-    auto path = shortest_path(std_meta.ingress_swport, dstid_to_swport[dst_id]);
-    std_meta.egress_path = path.pop_back();
-    std_meta.egress_path_action = fwd_action;
+    auto path = shortest_path(pkt.ingress_swport, dstid_to_swport[dst_id]);
+    pkt.egress_path = path.pop_back();
+    pkt.egress_path_action = fwd_action;
 }
 
 
 @label('edge_inner_ingress')
-void on_pkt(headers_t hdr, standard_metadata_t std_meta) {
-    hdr.myTunnel.setInvalid()
-    std_meta.egress_path = shortest_path(std_meta.ingress_swport, dstid_to_swport[hdr.myTunnel.dst_id])
+void on_pkt(inout packet_t<headers_t, metadata_t> pkt) {
+    pkt.hdr.myTunnel.setInvalid()
+    pkt.egress_path = shortest_path(pkt.ingress_swport, dstid_to_swport[pkt.hdr.myTunnel.dst_id])
 }

@@ -6,14 +6,14 @@ typedef tuple<swid_t, portid_t> swport_t;
 
 
 /*** path type definition ***/
-enum path_mode_t {
+enum path_mode {
     ANY,  // forward to one of the dst swport
     ALL   // multicast to all of the dst swport
 }
 
 /** defines forward behaivor of switch, when pkt comes from src, send pkt to dst according to path_mode **/
 struct path_ele_t {
-    path_mode_t mode;
+    path_mode mode;
     set<swport_t> src;
     set<swport_t> dst;
 }
@@ -51,6 +51,18 @@ struct standard_metadata_t {
     egress_path_action_mode_t egress_path_action_mode;  // action mode see: egress_path_action_mode_t
     bit<32> packet_length;
 }
+
+/***** packet structure *****/
+struct packet_t<H, M> {
+    H hdr;
+    M meta;
+    swport_t ingress_swport;        // ingress switch and port
+    path_t  egress_path;            // the egress forwarding path
+    action_t egress_path_action;    // the forward action to take when forwarding along egress_path
+    egress_path_action_mode_t egress_path_action_mode;  // action mode see: egress_path_action_mode_t
+    bit<32> packet_length;
+}
+
 
 /** extern functions, bellow should be implement by magellan library **/
 extern swport_t peer(swport_t swport);
