@@ -7,8 +7,28 @@
 extern path_t shortest_path(swport_t src, swpport_t dst);
 
 /** global data structures **/
-map<ip4Addr_t, swport_t> ip_to_swport;
-map<swport_t, macAddr_t> swport_to_mac;
+/** these could be set by another function, but finally it must has value as following **/
+map<ip4Addr_t, swport_t> ip_to_swport = {
+    ip2int('10.0.1.1'): ('sw1', 'p1'),
+    ip2int('10.0.2.2'): ('sw1', 'p2'),
+    ip2int('10.0.3.3'): ('sw2', 'p1'),
+    ip2int('10.0.4.4'): ('sw2', 'p2')
+};
+map<swport_t, macAddr_t> swport_to_next_mac = {
+    ('sw1', 'p1'): mac2int('08:00:00:00:01:11'),
+    ('sw1', 'p2'): mac2int('08:00:00:00:02:22'),
+    ('sw1', 'p3'): mac2int('08:00:00:00:03:00'),
+    ('sw1', 'p4'): mac2int('08:00:00:00:04:00'),
+    ('sw2', 'p1'): mac2int('08:00:00:00:03:33'),
+    ('sw2', 'p2'): mac2int('08:00:00:00:04:44'),
+    ('sw2', 'p3'): mac2int('08:00:00:00:04:00'),
+    ('sw2', 'p4'): mac2int('08:00:00:00:03:00'),
+    ('sw3', 'p1'): mac2int('08:00:00:00:01:00'),
+    ('sw3', 'p2'): mac2int('08:00:00:00:02:00'),
+    ('sw4', 'p1'): mac2int('08:00:00:00:02:00'),
+    ('sw4', 'p2'): mac2int('08:00:00:00:01:00')
+
+};
 
 /** path action, will be performed on each or one of switches of path.
  ** pseudo code of the procedure:
@@ -21,7 +41,7 @@ map<swport_t, macAddr_t> swport_to_mac;
  **/
 action fwd_action(inout headers_t hdr, in path_ele_t path_ele) {
   hdr.ethernet.srcAddr = hdr.ethernet.dstAddr;
-  hdr.ethernet.dstAddr = swport_to_mac[peer(path_ele.dst[0])];
+  hdr.ethernet.dstAddr = swport_to_next_mac[path_ele.dst[0]];
   hdr.ipv4.ttl--;
 }
 
