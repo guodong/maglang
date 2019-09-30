@@ -33,33 +33,14 @@ extern packet_in {
     bit<32> length();
 }
 
-/***** standard metadata *****/
-
-/* indicate the execute mode of egress_path_action
- * ONCE: only execute once
- * EACH: execute on each node of path
- */
-enum egress_path_action_mode_t {
-    ONCE,
-    EACH
-}
-
-struct standard_metadata_t {
-    swport_t ingress_swport;        // ingress switch and port
-    path_t  egress_path;            // the egress forwarding path
-    action_t egress_path_action;    // the forward action to take when forwarding along egress_path
-    egress_path_action_mode_t egress_path_action_mode;  // action mode see: egress_path_action_mode_t
-    bit<32> packet_length;
-}
-
 /***** packet structure *****/
 struct packet_t<H, M> {
     H hdr;
     M meta;
     swport_t ingress_swport;        // ingress switch and port
     path_t  egress_path;            // the egress forwarding path
-    action_t egress_path_action;    // the forward action to take when forwarding along egress_path
-    egress_path_action_mode_t egress_path_action_mode;  // action mode see: egress_path_action_mode_t
+    action_t egress_path_action_each;    // the forward action exec on each node when forwarding along egress_path
+    action_t egress_path_action_once;    // the forward action exec once when forwarding along egress_path
     bit<32> packet_length;
 }
 
