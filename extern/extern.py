@@ -12,6 +12,13 @@ def shortest_path(src, dst):
     path = networkx.shortest_path(G)
     return helper.to_magellan_path(path)
 
+def stp_path(root):
+    G = networkx.Graph()
+    G.add_edges(topo.links)
+    stp = networkx.minimal_spanning_tree(G)
+    return helper.to_magellan_path(stp)
+
 
 export('shortest_path', shortest_path)
-export('peer', peer)
+export('stp_path', stp_path)
+
