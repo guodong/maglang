@@ -4,13 +4,25 @@
 
 extern path_t shortest_path(swport_t src, swpport_t dst);
 
-map<ip4Addr_t, bit<16>> ip_to_dstid;
-map<bit<16>, swport_t> dstid_to_swport;
-map<swport_t, macAddr_t> swport_to_mac;
+/** global data structures **/
+/** these could be set by another function, but finally it must has value as following **/
+map<ip4Addr_t, bit<16>> ip_to_dstid = { // todo: mask
+    ip2int('10.0.1.1'): 1,
+    ip2int('10.0.2.2'): 2,
+    ip2int('10.0.3.3'): 3,
+};
+map<bit<16>, swport_t> dstid_to_swport = {
+    1: ('h1', 'eth0'),
+    2: ('h2', 'eth0'),
+    3: ('h3', 'eth0')
+};
+map<ip4Addr_t, macAddr_t> ipv4_to_mac = {
+    ip2int('10.0.1.1'): mac2int('08:00:00:00:01:11'),
+    ip2int('10.0.2.2'): mac2int('08:00:00:00:02:22'),
+    ip2int('10.0.3.3'): mac2int('08:00:00:00:03:33')
+}
 
-action fwd_action(headers_t hdr, path_ele_t path_ele) {
-  hdr.ethernet.srcAddr = hdr.ethernet.dstAddr;
-  hdr.ethernet.dstAddr = swport_to_mac[peer(path_ele.dst[0])];
+action dec_ttl(inout headers_t hdr, in path_ele_t path_ele) {
   hdr.ipv4.ttl--;
 }
 
@@ -20,13 +32,14 @@ void on_pkt(inout packet_t<headers_t, metadata_t> pkt) {
     hdr.myTunnel.dst_id = dst_id;
     hdr.myTunnel.setValid();
     auto path = shortest_path(pkt.ingress_swport, dstid_to_swport[dst_id]);
-    pkt.egress_path = path.pop_back();
-    pkt.egress_path_action = fwd_action;
+    pkt.egress_path = path.pop_back();  // remove the last path_ele in order to go to edge_inner_ingress
+    pkt.egress_path_action_each = dec_ttl;
 }
 
 
 @label('edge_inner_ingress')
 void on_pkt(inout packet_t<headers_t, metadata_t> pkt) {
     pkt.hdr.myTunnel.setInvalid()
+    pkt.hdr.ethernet.dstAddr = ipv4_to_mac[pkt.hdr.ipv4.dst];
     pkt.egress_path = shortest_path(pkt.ingress_swport, dstid_to_swport[pkt.hdr.myTunnel.dst_id])
 }

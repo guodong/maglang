@@ -3,26 +3,28 @@
 #include <headers.mag>
 #incluee <parser.mag>
 
-/** extern functions, impleneted in external codes **/
+/** extern functions, implemented in external codes **/
 extern path_t shortest_path(swport_t src, swpport_t dst);
 
 /** global data structures **/
-map<ip4Addr_t, swport_t> ip_to_swport;
-map<swport_t, macAddr_t> swport_to_mac;
+map<ip4Addr_t, swport_t> ip_to_swport = {
+    ip2int('10.0.1.1'): ('h1', 'eth0'),
+    ip2int('10.0.2.2'): ('h2', 'eth0'),
+    ip2int('10.0.3.3'): ('h3', 'eth0')
+};
+map<ip4Addr_t, macAddr_t> ipv4_to_mac = {
+    ip2int('10.0.1.1'): mac2int('08:00:00:00:01:11'),
+    ip2int('10.0.2.2'): mac2int('08:00:00:00:02:22'),
+    ip2int('10.0.3.3'): mac2int('08:00:00:00:03:33'),
+    ip2int('10.0.4.4'): mac2int('08:00:00:00:04:44')
+}
 
-/** path action, will be performed on each or one of switches of path.
- ** pseudo code of the procedure:
- ** if pkt.egress_path_action_mode == EACH:
- **   for path_ele in pkt.egress_path:
- **     perform fwd_action(pkt.hdr, path_ele) on path_ele.switch
- ** elif pkt.egress_path_action_mode == ONCE:
- **   path_ele = select one of path_ele in pkt.egress_path
- **   perform fwd_action(pkt.hdr, path_ele) on path_ele.switch
- **/
-action fwd_action(inout headers_t hdr, in path_ele_t path_ele) {
-  hdr.ethernet.srcAddr = hdr.ethernet.dstAddr;
-  hdr.ethernet.dstAddr = swport_to_mac[peer(path_ele.dst[0])];
+action dec_ttl(inout headers_t hdr, in path_ele_t path_ele) {
   hdr.ipv4.ttl--;
+}
+
+action rewrite_mac(inout headers_t hdr, in path_ele_t path_ele) {
+    hdr.ethernet.dstAddr = ipv4_to_mac[hdr.ipv4.dst];
 }
 
 
@@ -43,6 +45,6 @@ void on_pkt(inout packet_t<headers_t, metadata_t> pkt) {
     }
 
     pkt.egress_path = path;
-    pkt.egress_path_action = fwd_action;
-    pkt.egress_path_action_mode = path_mode.EACH;
+    pkt.egress_path_action_each = dec_ttl;
+    pkt.egress_path_action_once = rewrite_mac;
 }

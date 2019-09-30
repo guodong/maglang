@@ -34,7 +34,7 @@ action dec_ttl(inout headers_t hdr, in path_ele_t path_ele) {
   hdr.ipv4.ttl--;
 }
 
-action mac_rewrite(inout headers_t hdr, in path_ele_t path_ele) {
+action rewrite_mac(inout headers_t hdr, in path_ele_t path_ele) {
     hdr.ethernet.dstAddr = ipv4_to_mac[hdr.ipv4.dst];
 }
 
@@ -44,5 +44,5 @@ void on_pkt(inout packet_t<headers_t, metadata_t> pkt) {
     auto path = shortest_path(pkt.ingress_swport, ip_to_swport.lpm(pkt.hdr.ipv4.dst));
     pkt.egress_path = path;
     pkt.egress_path_action_each = dec_ttl;
-    pkt.egress_path_action_once = mac_rewrite;
+    pkt.egress_path_action_once = rewrite_mac;
 }

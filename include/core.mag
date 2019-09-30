@@ -1,7 +1,7 @@
 
 /*** common types ***/
-typedef bit<32> swid_t;
-typedef bit<9> portid_t;
+typedef string swid_t;
+typedef string portid_t;
 typedef tuple<swid_t, portid_t> swport_t;
 
 
@@ -19,6 +19,9 @@ struct path_ele_t {
 }
 
 typedef list<path_ele_t> path_t;
+
+typedef list<swport_t> single_path_t;
+typedef path_t multi_path_t;
 
 /** extern object for parser **/
 extern packet_in {
@@ -45,5 +48,7 @@ struct packet_t<H, M> {
 }
 
 
-/** extern functions, bellow should be implement by magellan library **/
+/** core extern functions, bellow should be implement by magellan compiler **/
 extern swport_t peer(swport_t swport);
+extern bit<32> ip2int(in string ip);
+extern bit<48> mac2int(in string mac);
