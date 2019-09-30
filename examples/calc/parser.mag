@@ -1,0 +1,30 @@
+/*************************************************************************
+ ***********************  P A R S E R  ***********************************
+ *************************************************************************/
+parser MyParser(packet_in packet,
+                out headers hdr,
+                inout metadata meta,
+                inout standard_metadata_t standard_metadata) {
+
+    state start {
+        packet.extract(hdr.ethernet);
+        transition select(hdr.ethernet.etherType) {
+            P4CALC_ETYPE : check_p4calc;
+            default      : accept;
+        }
+    }
+
+    state check_p4calc {
+        transition select(packet.lookahead<p4calc_t>().p,
+        packet.lookahead<p4calc_t>().four,
+        packet.lookahead<p4calc_t>().ver) {
+            (P4CALC_P, P4CALC_4, P4CALC_VER) : parse_p4calc;
+            default                          : accept;
+        }
+    }
+
+    state parse_p4calc {
+        packet.extract(hdr.p4calc);
+        transition accept;
+    }
+}
