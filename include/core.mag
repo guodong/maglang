@@ -47,7 +47,7 @@ struct packet_t<H, M> {
     bit<32> packet_length;
 }
 
-/***** switch metadata, for action iterate *****/
+/***** switch metadata, for action iteration *****/
 struct switch_meta_t {
     bit<32> enq_timestamp;
     bit<19> enq_qdepth;
@@ -57,6 +57,7 @@ struct switch_meta_t {
 
 
 /** core extern functions, bellow should be implement by magellan compiler **/
-extern swport_t peer(swport_t swport);
+@builtin
 extern bit<32> ip2int(in string ip);
+@builtin
 extern bit<48> mac2int(in string mac);

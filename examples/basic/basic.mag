@@ -23,12 +23,11 @@ map<ip4Addr_t, macAddr_t> ipv4_to_mac = {
 
 /** path action, will be performed on each or one of switches of path.
  ** pseudo code of the procedure:
- ** if pkt.egress_path_action_mode == EACH:
  **   for path_ele in pkt.egress_path:
- **     perform fwd_action(pkt.hdr, path_ele) on path_ele.switch
- ** elif pkt.egress_path_action_mode == ONCE:
+ **     perform pkt.egress_path_action_each(pkt.hdr, path_ele) on path_ele
+ **
  **   path_ele = select one of path_ele in pkt.egress_path
- **   perform fwd_action(pkt.hdr, path_ele) on path_ele.switch
+ **   perform pkt.egress_path_action_once(pkt.hdr, path_ele) on path_ele
  **/
 action dec_ttl(inout headers_t hdr, in path_ele_t path_ele) {
   hdr.ipv4.ttl--;

@@ -32,6 +32,7 @@ magellan reserved keyword list:
 
 magellan reserved annotations:
     1. label
+    2. builtin
 ************************************************************************************************/
 
 
@@ -405,6 +406,7 @@ statement
     : assignmentOrMethodCallStatement
     | conditionalStatement
     | switchStatement
+    | forStatement
     | blockStatement
     | returnStatement
     | emptyStatement
@@ -437,7 +439,7 @@ conditionalStatement
     ;
 
 switchStatement
-    : SWITCH '(' expression ')' '{' switchCases '}'
+    : SWITCH '(' lvalue ')' '{' switchCases '}'
     ;
 
 switchCases
@@ -453,6 +455,21 @@ switchCase
 switchLabel
     : name
     | DEFAULT
+    ;
+
+forStatement:
+    : FOR '(' forCondition ')' statement
+    ;
+
+forCondition
+	: forDeclaration ';'
+	| forDeclaration ';' expression ';'
+	| forDeclaration ';' expression ';' expression
+	;
+
+forDeclaration
+    : typeRef name optInitializer
+	| name
     ;
 
 returnStatement
@@ -515,16 +532,31 @@ expression
     | FALSE
     | STRING_LITERAL
     | name
-    | dotPrefix name
-    | expression '[' expression ']'
-    | expression '[' expression ':' expression ']'
+    | unaryExpression
+    | binaryExpression
+    | trinaryExpression
+    ;
+
+unaryExpression:
     | '{' expressionList '}'
     | '(' expression ')'
+    | TYPE_IDENTIFIER '.' member
+    | attrExpression
     | '!' expression
     | '~' expression
     | '-' expression
     | '+' expression
-    | TYPE_IDENTIFIER '.' member
+    | '++' lvalue
+    | '--' lvalue
+    | lvalue '++'
+    | lvalue '--'
+    ;
+
+attrExpression:
+    : expression dotPrefix name
+    ;
+
+binaryExpression:
     | expression '.' member
     | expression '*' expression
     | expression '/' expression
@@ -547,8 +579,12 @@ expression
     | expression PP expression         // ++
     | expression AND expression        // &&
     | expression OR expression         // ||
-    | expression '?' expression ':' expression
-    | expression '<' realTypeArgumentList '>' '(' argumentList ')'
+    | expression '[' expression ']'
     | expression '(' argumentList ')'
     | '(' typeRef ')' expression
     ;
+
+trinaryExpression:
+    | expression '[' expression ':' expression ']'
+    | expression '?' expression ':' expression
+    | expression '<' realTypeArgumentList '>' '(' argumentList ')'
