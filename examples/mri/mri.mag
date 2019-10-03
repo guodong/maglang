@@ -1,0 +1,53 @@
+/** dependencies include **/
+#include <core.mag>
+#include <headers.mag>
+#incluee <parser.mag>
+
+/** extern functions, impleneted in external codes **/
+extern path_t shortest_path(swport_t src, swpport_t dst);
+
+/** global data structures **/
+/** these could be set by another function, but finally it must has value as following **/
+map<ip4Addr_t, swport_t> ip_to_swport = {
+    ip2int('10.0.1.1'): ('h1', 'eth0'),
+    ip2int('10.0.1.11'): ('h11', 'eth0'),
+    ip2int('10.0.2.2'): ('h2', 'eth0'),
+    ip2int('10.0.2.22'): ('h22', 'eth0'),
+    ip2int('10.0.3.3'): ('h3', 'eth0')
+};
+map<ip4Addr_t, macAddr_t> ipv4_to_mac = {
+    ip2int('10.0.1.1'): mac2int('08:00:00:00:01:01'),
+    ip2int('10.0.1.11'): mac2int('08:00:00:00:01:11'),
+    ip2int('10.0.2.2'): mac2int('08:00:00:00:02:02'),
+    ip2int('10.0.2.22'): mac2int('08:00:00:00:02:22'),
+    ip2int('10.0.3.3'): mac2int('08:00:00:00:03:03')
+}
+
+action dec_ttl_mri(inout headers_t hdr, in path_ele_t path_ele, in switch_meta_t switch_meta) {
+    hdr.ipv4.ttl--;
+    if (hdr.mri.isValid()) {
+        hdr.mri.count = hdr.mri.count + 1;
+        hdr.swtraces.push_front(1);
+        hdr.swtraces[0].setValid();
+        hdr.swtraces[0].swid = bit<32>(path_ele.sw);
+        hdr.swtraces[0].qdepth = (qdepth_t)switch_meta.deq_qdepth;
+
+        hdr.ipv4.ihl = hdr.ipv4.ihl + 2;
+        hdr.ipv4_option.optionLength = hdr.ipv4_option.optionLength + 8;
+	hdr.ipv4.totalLen = hdr.ipv4.totalLen + 8;
+    }
+}
+
+action rewrite_mac(inout headers_t hdr, in path_ele_t path_ele) {
+    hdr.ethernet.dstAddr = ipv4_to_mac[hdr.ipv4.dst];
+}
+
+
+@label('external_ingress')
+void on_pkt(inout packet_t<headers_t, metadata_t> pkt) {
+    auto path = shortest_path(pkt.ingress_swport, ip_to_swport.lpm(pkt.hdr.ipv4.dst));
+
+    pkt.egress_path = path;
+    pkt.egress_path_action_each = dec_ttl_mri;
+    pkt.egress_path_action_once = rewrite_mac;
+}
