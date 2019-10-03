@@ -14,6 +14,7 @@ enum path_mode {
 /** defines forward behaivor of switch, when pkt comes from src, send pkt to dst according to path_mode **/
 struct path_ele_t {
     path_mode mode;
+    swid_t sw;
     set<swport_t> src;
     set<swport_t> dst;
 }
@@ -22,6 +23,7 @@ typedef list<path_ele_t> path_t;
 
 typedef list<swport_t> single_path_t;
 typedef path_t multi_path_t;
+path_t drop = [];
 
 /** extern object for parser **/
 extern packet_in {
@@ -55,6 +57,28 @@ struct switch_meta_t {
     bit<19> deq_qdepth;
 }
 
+
+/***** hash function *****/
+enum HashAlgorithm {
+    crc32,
+    crc32_custom,
+    crc16,
+    crc16_custom,
+    random,
+    identity,
+    csum16,
+    xor16
+}
+
+extern void hash<O, T, D, M>(out O result, in HashAlgorithm algo, in T base, in D data, in M max);
+
+/***** switch level objects *****/
+@dataplane
+extern register<T> {
+    register(bit<32> size);
+    void read(out T result, in bit<32> index);
+    void write(in bit<32> index, in T value);
+}
 
 /** core extern functions, bellow should be implement by magellan compiler **/
 @builtin

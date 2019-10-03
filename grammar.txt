@@ -24,7 +24,7 @@ notes:
         - DONTCARE is _
 
 magellan reserved keyword list:
-    1. types: bit varbit void int bool map set list tuple enum struct union auto true false const typedef
+    1. types: bit varbit void int bool string map set list tuple enum struct union auto true false const typedef
     2. header: header
     3. parser: parser select transition state
     4. control: if else switch in

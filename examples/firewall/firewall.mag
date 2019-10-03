@@ -1,0 +1,103 @@
+/** dependencies include **/
+#include <core.mag>
+#include <headers.mag>
+#incluee <parser.mag>
+
+/** extern functions, impleneted in external codes **/
+extern path_t shortest_path(swport_t src, swpport_t dst);
+
+/** global data structures **/
+/** these could be set by another function, but finally it must has value as following **/
+map<ip4Addr_t, swport_t> ip_to_swport = {
+    ip2int('10.0.1.1'): ('h1', 'eth0'),
+    ip2int('10.0.2.2'): ('h2', 'eth0'),
+    ip2int('10.0.3.3'): ('h3', 'eth0'),
+    ip2int('10.0.4.4'): ('h4', 'eth0')
+};
+map<ip4Addr_t, macAddr_t> ipv4_to_mac = {
+    ip2int('10.0.1.1'): mac2int('08:00:00:00:01:11'),
+    ip2int('10.0.2.2'): mac2int('08:00:00:00:02:22'),
+    ip2int('10.0.3.3'): mac2int('08:00:00:00:03:33'),
+    ip2int('10.0.4.4'): mac2int('08:00:00:00:04:44')
+}
+
+action dec_ttl(inout headers_t hdr, in path_ele_t path_ele) {
+  hdr.ipv4.ttl--;
+}
+
+action rewrite_mac(inout headers_t hdr, in path_ele_t path_ele) {
+    hdr.ethernet.dstAddr = ipv4_to_mac[hdr.ipv4.dst];
+}
+
+register<bit<BLOOM_FILTER_BIT_WIDTH>>(BLOOM_FILTER_ENTRIES) bloom_filter_1;
+register<bit<BLOOM_FILTER_BIT_WIDTH>>(BLOOM_FILTER_ENTRIES) bloom_filter_2;
+bit<32> reg_pos_one; bit<32> reg_pos_two;
+bit<1> reg_val_one; bit<1> reg_val_two;
+
+void compute_hashes(ip4Addr_t ipAddr1, ip4Addr_t ipAddr2, bit<16> port1, bit<16> port2){
+       //Get register position
+       hash(reg_pos_one, HashAlgorithm.crc16, (bit<32>)0, {ipAddr1,
+                                                           ipAddr2,
+                                                           port1,
+                                                           port2,
+                                                           hdr.ipv4.protocol},
+                                                           (bit<32>)BLOOM_FILTER_ENTRIES);
+
+       hash(reg_pos_two, HashAlgorithm.crc32, (bit<32>)0, {ipAddr1,
+                                                           ipAddr2,
+                                                           port1,
+                                                           port2,
+                                                           hdr.ipv4.protocol},
+                                                           (bit<32>)BLOOM_FILTER_ENTRIES);
+}
+
+@label('firewall_internal')
+void on_pkt(inout packet_t<headers_t, metadata_t> pkt) {
+    auto path = shortest_path(pkt.ingress_swport, ip_to_swport.lpm(pkt.hdr.ipv4.dst));
+    swport_t first_swport = path.first();
+    if (first_swport[1] in ['p3', 'p4']) { // internal to external
+        // set the bloom filter
+        compute_hashes(pkt.hdr.ipv4.srcAddr, pkt.hdr.ipv4.dstAddr, pkt.hdr.tcp.srcPort, pkt.hdr.tcp.dstPort);
+        if (hdr.tcp.syn == 1){
+            bloom_filter_1.write(reg_pos_one, 1);
+            bloom_filter_2.write(reg_pos_two, 1);
+        }
+    }
+    pkt.egress_path = path;
+    pkt.egress_path_action_each = dec_ttl;
+    pkt.egress_path_action_once = rewrite_mac;
+}
+
+@label('firewall_external')
+void on_pkt(inout packet_t<headers_t, metadata_t> pkt) {
+    auto path = shortest_path(pkt.ingress_swport, ip_to_swport.lpm(pkt.hdr.ipv4.dst));
+    swport_t first_swport = path.first();
+    if (first_swport[1] in ['p1', 'p2']) { // external to internal
+        compute_hashes(pkt.hdr.ipv4.dstAddr, pkt.hdr.ipv4.srcAddr, pkt.hdr.tcp.dstPort, pkt.hdr.tcp.srcPort);
+        // Read bloom filter cells to check if there are 1's
+        bloom_filter_1.read(reg_val_one, reg_pos_one);
+        bloom_filter_2.read(reg_val_two, reg_pos_two);
+        // only allow flow to pass if both entries are set
+        if (reg_val_one != 1 || reg_val_two != 1){
+            drop();
+        }
+        pkt.egress_path = path;
+        pkt.egress_path_action_each = dec_ttl;
+        pkt.egress_path_action_once = rewrite_mac;
+    } else {
+        pkt.egress_path = drop;
+    }
+}
+
+@label('external_ingress')
+void on_pkt(inout packet_t<headers_t, metadata_t> pkt) {
+    auto path = shortest_path(pkt.ingress_swport, ip_to_swport.lpm(pkt.hdr.ipv4.dst));
+    if (path.last().sw == 's1') {
+        pkt.egress_path = path.pop_back();
+        pkt.egress_path_action_each = dec_ttl;
+    } else {
+        pkt.egress_path = path;
+        pkt.egress_path_action_each = dec_ttl;
+        pkt.egress_path_action_once = rewrite_mac;
+    }
+}
