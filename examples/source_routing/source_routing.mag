@@ -1,0 +1,20 @@
+/** dependencies include **/
+#include <core.mag>
+#include <headers.mag>
+#incluee <parser.mag>
+
+
+@label()
+void on_pkt(inout packet_t<headers_t, metadata_t> pkt) {
+    if (pkt.hdr.srcRoutes[0].isValid()) {
+        if (pkt.hdr.srcRoutes[0].bos == 1) {
+            pkt.hdr.ethernet.etherType = TYPE_IPV4;
+        }
+        pkt.hdr.ipv4.ttl--;
+        path_t path = [(bit<9>)pkt.hdr.srcRoutes[0].port]; // TODO: fix path
+        pkt.egress_path = path;
+        pkt.hdr.srcRoutes.pop_front(1);
+    } else {
+        pkt.egress_path = drop;
+    }
+}
