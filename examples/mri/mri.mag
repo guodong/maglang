@@ -38,7 +38,7 @@ action dec_ttl_mri(inout headers_t hdr, in path_ele_t path_ele, in switch_meta_t
     }
 }
 
-action rewrite_mac(inout headers_t hdr, in path_ele_t path_ele) {
+action rewrite_mac(inout headers_t hdr, in path_ele_t path_ele, in switch_meta_t switch_meta) {
     hdr.ethernet.dstAddr = ipv4_to_mac[hdr.ipv4.dst];
 }
 

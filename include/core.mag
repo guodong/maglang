@@ -1,13 +1,4 @@
-/***** packet structure *****/
-struct packet_t<H, M> {
-    H hdr;
-    M meta;
-    swport_t ingress_swport;        // ingress switch and port
-    path_t  egress_path;            // the egress forwarding path
-    action_t egress_path_action_each;    // the forward action exec on each node when forwarding along egress_path
-    action_t egress_path_action_once;    // the forward action exec once when forwarding along egress_path
-    bit<32> packet_length;
-}
+
 
 
 /***** path type definition *****/
@@ -30,7 +21,18 @@ struct path_ele_t {
 
 typedef list<path_ele_t> path_t;
 
-path_t drop = []; // drop definition
+path_t drop = []; // drop is an empty list
+
+/***** packet structure *****/
+struct packet_t<H, M> {
+    H hdr;
+    M meta;
+    swport_t ingress_swport;        // ingress switch and port
+    path_t  egress_path;            // the egress forwarding path
+    action egress_path_action_each(inout headers_t, in path_ele_t, in switch_meta_t);    // the forward action exec on each node when forwarding along egress_path
+    action egress_path_action_once(inout headers_t, in path_ele_t, in switch_meta_t);    // the forward action exec once when forwarding along egress_path
+    bit<32> packet_length;
+}
 
 /***** switch metadata, for action iteration *****/
 struct switch_meta_t {

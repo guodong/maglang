@@ -21,7 +21,7 @@ map<ip4Addr_t, macAddr_t> ipv4_to_mac = {
     ip2int('10.0.4.4'): mac2int('08:00:00:00:04:44')
 }
 
-action dec_ttl(inout headers_t hdr, in path_ele_t path_ele) {
+action dec_ttl(inout headers_t hdr, in path_ele_t path_ele, in switch_meta_t switch_meta) {
   hdr.ipv4.ttl--;
 }
 
