@@ -61,8 +61,8 @@ void compute_hashes(ip4Addr_t ipAddr1, ip4Addr_t ipAddr2, bit<16> port1, bit<16>
 @label('firewall_internal')
 void on_pkt(inout packet_t<headers_t, metadata_t> pkt) {
     auto path = shortest_path(pkt.ingress_swport, ip_to_swport.lpm(pkt.hdr.ipv4.dst));
-    swport_t first_swport = path.first();
-    if (first_swport[1] in ['p3', 'p4']) { // internal to external
+    path_ele_t path_ele = path.first();
+    if (path_ele.dst[0] in ['p3', 'p4']) { // internal to external
         // set the bloom filter
         compute_hashes(pkt.hdr.ipv4.srcAddr, pkt.hdr.ipv4.dstAddr, pkt.hdr.tcp.srcPort, pkt.hdr.tcp.dstPort);
         if (hdr.tcp.syn == 1){
@@ -79,7 +79,7 @@ void on_pkt(inout packet_t<headers_t, metadata_t> pkt) {
 void on_pkt(inout packet_t<headers_t, metadata_t> pkt) {
     auto path = shortest_path(pkt.ingress_swport, ip_to_swport.lpm(pkt.hdr.ipv4.dst));
     path_ele_t path_ele = path.first();
-    if (path_ele.dst.first() in ['p1', 'p2']) { // external to internal
+    if (path_ele.dst[0] in ['p1', 'p2']) { // external to internal
         compute_hashes(pkt.hdr.ipv4.dstAddr, pkt.hdr.ipv4.srcAddr, pkt.hdr.tcp.dstPort, pkt.hdr.tcp.srcPort);
 
         // only allow flow to pass if both entries are set

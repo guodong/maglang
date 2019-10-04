@@ -1,9 +1,20 @@
-/*** common types ***/
+/***** packet structure *****/
+struct packet_t<H, M> {
+    H hdr;
+    M meta;
+    swport_t ingress_swport;        // ingress switch and port
+    path_t  egress_path;            // the egress forwarding path
+    action_t egress_path_action_each;    // the forward action exec on each node when forwarding along egress_path
+    action_t egress_path_action_once;    // the forward action exec once when forwarding along egress_path
+    bit<32> packet_length;
+}
+
+
+/***** path type definition *****/
 typedef string swid_t;
 typedef string portid_t;
 typedef tuple<swid_t, portid_t> swport_t;
 
-/***** path type definition *****/
 enum path_mode {
     ANY,  // forward to one of the dst swport
     ALL   // multicast to all of the dst swport
@@ -20,17 +31,6 @@ struct path_ele_t {
 typedef list<path_ele_t> path_t;
 
 path_t drop = []; // drop definition
-
-/***** packet structure *****/
-struct packet_t<H, M> {
-    H hdr;
-    M meta;
-    swport_t ingress_swport;        // ingress switch and port
-    path_t  egress_path;            // the egress forwarding path
-    action_t egress_path_action_each;    // the forward action exec on each node when forwarding along egress_path
-    action_t egress_path_action_once;    // the forward action exec once when forwarding along egress_path
-    bit<32> packet_length;
-}
 
 /***** switch metadata, for action iteration *****/
 struct switch_meta_t {
@@ -53,14 +53,6 @@ enum HashAlgorithm {
 }
 
 extern void hash<O, T, D, M>(out O result, in HashAlgorithm algo, in T base, in D data, in M max);
-
-/***** switch level objects *****/
-@dataplane
-extern register<T> {
-    register(bit<32> size);
-    void read(out T result, in bit<32> index);
-    void write(in bit<32> index, in T value);
-}
 
 /** core extern functions, bellow should be implement by magellan compiler **/
 @builtin
