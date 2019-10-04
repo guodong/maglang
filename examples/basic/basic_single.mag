@@ -1,0 +1,102 @@
+#include <core.mag>
+
+const bit<16> TYPE_IPV4 = 0x800;
+/*************************************************************************
+*********************** H E A D E R S  ***********************************
+*************************************************************************/
+
+typedef bit<9>  egressSpec_t;
+typedef bit<48> macAddr_t;
+typedef bit<32> ip4Addr_t;
+
+header ethernet_t {
+    macAddr_t dstAddr;
+    macAddr_t srcAddr;
+    bit<16>   etherType;
+}
+
+header ipv4_t {
+    bit<4>    version;
+    bit<4>    ihl;
+    bit<8>    diffserv;
+    bit<16>   totalLen;
+    bit<16>   identification;
+    bit<3>    flags;
+    bit<13>   fragOffset;
+    bit<8>    ttl;
+    bit<8>    protocol;
+    bit<16>   hdrChecksum;
+    ip4Addr_t srcAddr;
+    ip4Addr_t dstAddr;
+}
+
+struct metadata_t {
+    /* empty */
+}
+
+struct headers_t {
+    ethernet_t   ethernet;
+    ipv4_t       ipv4;
+}
+
+/*************************************************************************
+*********************** P A R S E R  ***********************************
+*************************************************************************/
+
+parser MyParser(packet_in packet,
+                out headers_t hdr,
+                inout metadata meta,
+                inout standard_metadata_t standard_metadata) {
+
+    state start {
+        transition parse_ethernet;
+    }
+
+    state parse_ethernet {
+        packet.extract(hdr.ethernet);
+        transition select(hdr.ethernet.etherType) {
+            TYPE_IPV4: parse_ipv4;
+            default: accept;
+        }
+    }
+
+    state parse_ipv4 {
+        packet.extract(hdr.ipv4);
+        transition accept;
+    }
+}
+
+/** extern functions, impleneted in external codes **/
+extern path_t shortest_path(swport_t src, swpport_t dst);
+
+/** global data structures **/
+/** these could be set by another function, but finally it must has value as following **/
+map<ip4Addr_t, swport_t> ip_to_swport = {
+    ip2int('10.0.1.1'): ('h1', 'eth0'),
+    ip2int('10.0.2.2'): ('h2', 'eth0'),
+    ip2int('10.0.3.3'): ('h3', 'eth0'),
+    ip2int('10.0.4.4'): ('h4', 'eth0')
+};
+map<ip4Addr_t, macAddr_t> ipv4_to_mac = {
+    ip2int('10.0.1.1'): mac2int('08:00:00:00:01:11'),
+    ip2int('10.0.2.2'): mac2int('08:00:00:00:02:22'),
+    ip2int('10.0.3.3'): mac2int('08:00:00:00:03:33'),
+    ip2int('10.0.4.4'): mac2int('08:00:00:00:04:44')
+}
+
+action dec_ttl(inout headers_t hdr, in path_ele_t path_ele) {
+  hdr.ipv4.ttl--;
+}
+
+action rewrite_mac(inout headers_t hdr, in path_ele_t path_ele) {
+    hdr.ethernet.dstAddr = ipv4_to_mac[hdr.ipv4.dst];
+}
+
+
+@label('external_ingress')
+void on_pkt(inout packet_t<headers_t, metadata_t> pkt) {
+    auto path = shortest_path(pkt.ingress_swport, ip_to_swport.lpm(pkt.hdr.ipv4.dst));
+    pkt.egress_path = path;
+    pkt.egress_path_action_each = dec_ttl;
+    pkt.egress_path_action_once = rewrite_mac;
+}

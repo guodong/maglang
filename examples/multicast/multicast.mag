@@ -8,7 +8,6 @@ extern path_t shortest_path(swport_t src, swpport_t dst);
 extern path_t stp_path(swport_t root_swport);
 
 /** global data structures **/
-/** these could be set by another function, but finally it must has value as following **/
 map<macAddr_t, swport_t> mac_to_swport;
 
 

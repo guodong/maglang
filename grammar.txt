@@ -33,6 +33,7 @@ magellan reserved keyword list:
 magellan reserved annotations:
     1. label
     2. builtin
+    3. dataplane
 ************************************************************************************************/
 
 

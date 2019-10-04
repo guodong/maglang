@@ -55,11 +55,11 @@ header tcp_t{
     bit<16> urgentPtr;
 }
 
-struct metadata {
+struct metadata_t {
     /* empty */
 }
 
-struct headers {
+struct headers_t {
     ethernet_t   ethernet;
     ipv4_t       ipv4;
     tcp_t        tcp;

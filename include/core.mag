@@ -1,11 +1,9 @@
-
 /*** common types ***/
 typedef string swid_t;
 typedef string portid_t;
 typedef tuple<swid_t, portid_t> swport_t;
 
-
-/*** path type definition ***/
+/***** path type definition *****/
 enum path_mode {
     ANY,  // forward to one of the dst swport
     ALL   // multicast to all of the dst swport
@@ -15,28 +13,13 @@ enum path_mode {
 struct path_ele_t {
     path_mode mode;
     swid_t sw;
-    set<swport_t> src;
-    set<swport_t> dst;
+    set<portid_t> src;
+    set<portid_t> dst;
 }
 
 typedef list<path_ele_t> path_t;
 
-typedef list<swport_t> single_path_t;
-typedef path_t multi_path_t;
-path_t drop = [];
-
-/** extern object for parser **/
-extern packet_in {
-
-    void extract<T>(out T hdr);
-
-    void extract<T>(out T variableSizeHeader,
-                    in bit<32> variableFieldSizeInBits);
-
-    T lookahead<T>();
-    void advance(in bit<32> sizeInBits);
-    bit<32> length();
-}
+path_t drop = []; // drop definition
 
 /***** packet structure *****/
 struct packet_t<H, M> {
@@ -56,7 +39,6 @@ struct switch_meta_t {
     bit<32> deq_timedelta;
     bit<19> deq_qdepth;
 }
-
 
 /***** hash function *****/
 enum HashAlgorithm {
