@@ -1,6 +1,3 @@
-
-
-
 /***** path type definition *****/
 typedef string swid_t;
 typedef string portid_t;
@@ -16,7 +13,7 @@ struct path_ele_t {
     path_mode mode;
     swid_t sw;
     set<portid_t> src;
-    set<portid_t> dst;
+    set<portid_t> dst; // TODO: cannot index
 }
 
 typedef list<path_ele_t> path_t;
@@ -24,18 +21,31 @@ typedef list<path_ele_t> path_t;
 path_t drop = []; // drop is an empty list
 
 /***** packet structure *****/
+/** TODO:
+** P4 model has 3 components: ingress -> queue -> egress, what is magellan model
+** a consideration is magellan special case like single switch just like p4
+**
+**/
 struct packet_t<H, M> {
     H hdr;
     M meta;
+
+    // magellan standard metadata
+    // TODO: clone, handle generic replication, with elegant handling of common cases
+    // TODO: handle tap use case
     swport_t ingress_swport;        // ingress switch and port
     path_t  egress_path;            // the egress forwarding path
+    // bit<9>  egress_port; ? queue TM, QoS
+
+
     action egress_path_action_each(inout headers_t, in path_ele_t, in switch_meta_t);    // the forward action exec on each node when forwarding along egress_path
+    // TODO: handle issue like order
     action egress_path_action_once(inout headers_t, in path_ele_t, in switch_meta_t);    // the forward action exec once when forwarding along egress_path
     bit<32> packet_length;
 }
 
 /***** switch metadata, for action iteration *****/
-struct switch_meta_t {
+struct switch_meta_t { // TODO: link_monitor metadata
     bit<32> enq_timestamp;
     bit<19> enq_qdepth;
     bit<32> deq_timedelta;

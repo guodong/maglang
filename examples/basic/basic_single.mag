@@ -85,7 +85,7 @@ map<ip4Addr_t, macAddr_t> ipv4_to_mac = {
 }
 
 action dec_ttl(inout headers_t hdr, in path_ele_t path_ele) {
-  hdr.ipv4.ttl--;
+    hdr.ipv4.ttl--;
 }
 
 action rewrite_mac(inout headers_t hdr, in path_ele_t path_ele) {

@@ -1,0 +1,62 @@
+/** dependencies include **/
+#include <core.mag>
+#include <headers.mag>
+#incluee <parser.mag>
+
+/** extern functions, impleneted in external codes **/
+extern path_t custom_path(swport_t src);
+
+/** global data structures **/
+/** these could be set by another function, but finally it must has value as following **/
+map<ip4Addr_t, swport_t> ip_to_swport;
+map<ip4Addr_t, macAddr_t> ipv4_to_mac;
+
+
+action dec_ttl(inout headers_t hdr, in path_ele_t path_ele, in switch_meta_t switch_meta) {
+    bit<32>[MAX_PORTS] byte_cnt_reg;
+    bit<time_t>[MAX_PORTS] last_time_reg;
+    bit<32> byte_cnt;
+    bit<32> new_byte_cnt;
+    time_t last_time;
+    time_t cur_time = switch_meta.egress_global_timestamp;
+    // increment byte cnt for this packet's port
+    byte_cnt = byte_cnt_reg[path_ele.dst[0]];
+    byte_cnt = byte_cnt + switch_meta.packet_length;
+    // reset the byte count when a probe packet passes through
+    new_byte_cnt = (hdr.probe.isValid()) ? 0 : byte_cnt;
+    byte_cnt_reg[path_ele.dst[0]] = new_byte_cnt;
+
+    hdr.ipv4.ttl--;
+    hdr.probe.hop_cnt = hdr.probe.hop_cnt + 1;
+    if (hdr.probe.isValid()) {
+        hdr.probe_data.push_front(1);
+        hdr.probe_data[0].setValid();
+        if (hdr.probe.hop_cnt == 1) {
+            hdr.probe_data[0].bos = 1;
+        }
+        else {
+            hdr.probe_data[0].bos = 0;
+        }
+        hdr.probe_data[0].swid = path_ele.sw;
+        hdr.probe_data[0].port = (bit<8>)path_ele.dst[0];
+        hdr.probe_data[0].byte_cnt = byte_cnt;
+        // read / update the last_time_reg
+        last_time_reg.read(last_time, (bit<32>)standard_metadata.egress_port);
+        last_time_reg.write((bit<32>)standard_metadata.egress_port, cur_time);
+        hdr.probe_data[0].last_time = last_time;
+        hdr.probe_data[0].cur_time = cur_time;
+    }
+}
+
+action rewrite_mac(inout headers_t hdr, in path_ele_t path_ele, in switch_meta_t switch_meta) {
+    hdr.ethernet.dstAddr = ipv4_to_mac[hdr.ipv4.dst];
+}
+
+
+@label('s1:p1')
+void on_pkt(inout packet_t<headers_t, metadata_t> pkt) {
+    auto path = custom_path(pkt.ingress_swport);
+    pkt.egress_path = path;
+    pkt.egress_path_action_each = dec_ttl;
+    pkt.egress_path_action_once = rewrite_mac;
+}

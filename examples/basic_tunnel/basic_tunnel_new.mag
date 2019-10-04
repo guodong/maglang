@@ -21,25 +21,29 @@ map<ip4Addr_t, macAddr_t> ipv4_to_mac = {
     ip2int('10.0.2.2'): mac2int('08:00:00:00:02:22'),
     ip2int('10.0.3.3'): mac2int('08:00:00:00:03:33')
 }
+map<swid_t, list<portid_t>> external_ports = {
+    's1': ['p1'],
+    's2': ['p1'],
+    's3': ['p1']
+};
 
-action dec_ttl(inout headers_t hdr, in path_ele_t path_ele, in switch_meta_t switch_meta) {
+action fwd_action(inout headers_t hdr, in path_ele_t path_ele, in switch_meta_t switch_meta) {
     hdr.ipv4.ttl--;
+    swid_t current_switchid = path_ele.sw;
+    if (exeternal_ports[current_switchid].contains(path_ele.dst[0])) {
+        pkt.hdr.myTunnel.setInvalid()
+        pkt.hdr.ethernet.dstAddr = ipv4_to_mac[pkt.hdr.ipv4.dst];
+    }
 }
 
 @label('external_ingress')
 void on_pkt(inout packet_t<headers_t, metadata_t> pkt) {
     auto dst_id = ip_to_dstid.lpm(pkt.hdr.ipv4.dst)
-    hdr.myTunnel.dst_id = dst_id;
-    hdr.myTunnel.setValid();
+    pkt.hdr.myTunnel.dst_id = dst_id;
+    pkt.hdr.myTunnel.setValid();
     auto path = shortest_path(pkt.ingress_swport, dstid_to_swport[dst_id]);
-    pkt.egress_path = path.pop_back();  // remove the last path_ele in order to go to edge_inner_ingress
-    pkt.egress_path_action_each = dec_ttl;
-}
 
-
-@label('edge_inner_ingress')
-void on_pkt(inout packet_t<headers_t, metadata_t> pkt) {
-    pkt.hdr.myTunnel.setInvalid()
-    pkt.hdr.ethernet.dstAddr = ipv4_to_mac[pkt.hdr.ipv4.dst];
-    pkt.egress_path = shortest_path(pkt.ingress_swport, dstid_to_swport[pkt.hdr.myTunnel.dst_id])
+    // TODO: consider functional language
+    path.forEach(function(path_ele_t path_ele) { fwd_action(pkt.hdr, path_ele, meata);})
+    pkt.egress_path_action_each = fwd_action;
 }

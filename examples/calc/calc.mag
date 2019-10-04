@@ -25,11 +25,10 @@ void on_pkt(inout packet_t<headers_t, metadata_t> pkt) {
     }
 
     /* Swap the MAC addresses */
-    bit<48> tmp;
-    tmp = pkt.hdr.ethernet.dstAddr;
+    auto tmp = pkt.hdr.ethernet.dstAddr;
     pkt.hdr.ethernet.dstAddr = hdr.ethernet.srcAddr;
     pkt.hdr.ethernet.srcAddr = tmp;
 
-    path = [{path_mode.ANY, *, [pkt.ingress_swport]}]
+    path = [{path_mode.ANY, ['*'], [pkt.ingress_swport]}] // rethink,
     pkt.egress_path = path;
 }
