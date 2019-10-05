@@ -31,7 +31,7 @@ action fwd_action(inout headers_t hdr, in path_ele_t path_ele, in switch_meta_t 
     hdr.ipv4.ttl--;
     swid_t current_switchid = path_ele.sw;
     if (exeternal_ports[current_switchid].contains(path_ele.dst[0])) {
-        pkt.hdr.myTunnel.setInvalid()
+        pkt.hdr.myTunnel.setInvalid();
         pkt.hdr.ethernet.dstAddr = ipv4_to_mac[pkt.hdr.ipv4.dst];
     }
 }
