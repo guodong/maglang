@@ -1,0 +1,79 @@
+/** dependencies include **/
+#include <core.mag>
+#include <headers.mag>
+#incluee <parser.mag>
+
+/** extern functions, impleneted in external codes **/
+extern path_t shortest_path(swport_t src, swpport_t dst);
+
+/** global data structures **/
+/** these could be set by another function, but finally it must has value as following **/
+map<ip4Addr_t, swport_t> ip_to_swport;
+map<ip4Addr_t, macAddr_t> ipv4_to_mac;
+set<portid_t> firewall_external_ports;
+
+@dataplane
+bit<BLOOM_FILTER_BIT_WIDTH>[BLOOM_FILTER_ENTRIES] bloom_filter_1;
+
+@dataplane
+bit<BLOOM_FILTER_BIT_WIDTH>[BLOOM_FILTER_ENTRIES] bloom_filter_2;
+
+@dataplane
+bit<32> reg_pos_one;
+
+@dataplane
+bit<32> reg_pos_two;
+
+void compute_hashes(ip4Addr_t ipAddr1, ip4Addr_t ipAddr2, bit<16> port1, bit<16> port2){
+       //Get register position
+       hash(reg_pos_one, HashAlgorithm.crc16, (bit<32>)0, {ipAddr1,
+                                                           ipAddr2,
+                                                           port1,
+                                                           port2,
+                                                           hdr.ipv4.protocol},
+                                                           (bit<32>)BLOOM_FILTER_ENTRIES);
+
+       hash(reg_pos_two, HashAlgorithm.crc32, (bit<32>)0, {ipAddr1,
+                                                           ipAddr2,
+                                                           port1,
+                                                           port2,
+                                                           hdr.ipv4.protocol},
+                                                           (bit<32>)BLOOM_FILTER_ENTRIES);
+}
+
+transpipe dec_ttl(inout packet_t<headers_t, metadata_t> pkt, in tm_t tm) {
+    pkt.hdr.ipv4.ttl--;
+}
+
+transpipe rewrite_mac(inout packet_t<headers_t, metadata_t> pkt, in tm_t tm) {
+    pkt.hdr.ethernet.dstAddr = ipv4_to_mac[pkt.hdr.ipv4.dst];
+}
+
+transpipe firewall(inout packet_t<headers_t, metadata_t> pkt, in tm_t tm) {
+    if (pkt.egress_port in firewall_external_ports) { // internal to external
+        // set the bloom filter
+        compute_hashes(pkt.hdr.ipv4.srcAddr, pkt.hdr.ipv4.dstAddr, pkt.hdr.tcp.srcPort, pkt.hdr.tcp.dstPort);
+        if (hdr.tcp.syn == 1){
+            bloom_filter_1[reg_pos_one] = 1;
+            bloom_filter_2[reg_pos_two] = 1;
+        }
+    } else {
+        compute_hashes(pkt.hdr.ipv4.dstAddr, pkt.hdr.ipv4.srcAddr, pkt.hdr.tcp.dstPort, pkt.hdr.tcp.srcPort);
+
+        // only allow flow to pass if both entries are set
+        if (bloom_filter_1[reg_pos_one] != 1 || bloom_filter_2[reg_pos_two] != 1){
+            pkt.egress_path = drop; // TODO: drop or not depend on state of firewall, but we cannot edit path in transpipe
+        }
+    }
+}
+
+ingresspipe inpipe(inout packet_t<headers_t, metadata_t> pkt) {
+    auto path = shortest_path(pkt.ingress_swport, ip_to_swport.lpm(pkt.hdr.ipv4.dst));
+    pkt.egress_path = path;
+}
+
+label 'external_ingress' {
+    MyParser,
+    inpipe,
+    dec_ttl*, (dec_ttl + firewall)@'fw_sw', dec_ttl*, dec_ttl + rewrite_mac
+}

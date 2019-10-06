@@ -1,0 +1,38 @@
+/** dependencies include **/
+#include <core.mag>
+#include <headers.mag>
+#incluee <parser.mag>
+
+/** extern functions, impleneted in external codes **/
+extern path_t shortest_path(swport_t src, swpport_t dst);
+
+/** global data structures **/
+/** these could be set by another function, but finally it must has value as following **/
+map<ip4Addr_t, swport_t> ip_to_swport;
+map<ip4Addr_t, macAddr_t> ipv4_to_mac;
+
+
+transpipe check_ecn(inout packet_t<headers_t, metadata_t> pkt, in tm_t tm) {
+    pkt.hdr.ipv4.ttl--;
+    if (hdr.ipv4.ecn == 1 || hdr.ipv4.ecn == 2){
+        if (tm.enq_qdepth >= ECN_THRESHOLD){
+            pkt.hdr.ipv4.ecn = 3;
+        }
+    }
+}
+
+transpipe rewrite_mac(inout packet_t<headers_t, metadata_t> pkt, in tm_t tm) {
+    pkt.hdr.ethernet.dstAddr = ipv4_to_mac[pkt.hdr.ipv4.dst];
+}
+
+
+ingresspipe inpipe(inout packet_t<headers_t, metadata_t> pkt) {
+    auto path = shortest_path(pkt.ingress_swport, ip_to_swport.lpm(pkt.hdr.ipv4.dst));
+    pkt.egress_path = path;
+}
+
+label 'external_ingress' {
+    MyParser,
+    inpipe,
+    check_ecn*, rewrite_mac
+}

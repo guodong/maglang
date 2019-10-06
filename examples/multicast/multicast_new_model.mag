@@ -1,0 +1,28 @@
+/** dependencies include **/
+#include <core.mag>
+#include <headers.mag>
+#incluee <parser.mag>
+
+/** extern functions, impleneted in external codes **/
+extern path_t shortest_path(swport_t src, swpport_t dst);
+extern path_t stp_path(swport_t root_swport);
+
+/** global data structures **/
+map<macAddr_t, swport_t> mac_to_swport;
+
+
+ingresspipe inpipe(inout packet_t<headers_t, metadata_t> pkt) {
+    if (mac_to_swport.contains(pkt.hdr.ethernet.dstAddr)) {
+        auto path = shortest_path(pkt.ingress_swport, mac_to_swport[pkt.hdr.ethernet.dstAddr]);
+    } else {
+        mac_to_swport[pkt.hdr.ethernet.dstAddr] = pkt.ingress_swport;
+        auto path = stp_path(pkt.ingress_swport);
+    }
+    pkt.egress_path = path;
+}
+
+label 'external_ingress' {
+    MyParser,
+    inpipe,
+    .*
+}

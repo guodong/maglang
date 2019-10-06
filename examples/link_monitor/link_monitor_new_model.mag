@@ -1,0 +1,68 @@
+/** dependencies include **/
+#include <core.mag>
+#include <headers.mag>
+#incluee <parser.mag>
+
+/** extern functions, impleneted in external codes **/
+extern path_t custom_path(swport_t src);
+
+/** global data structures **/
+/** these could be set by another function, but finally it must has value as following **/
+map<ip4Addr_t, swport_t> ip_to_swport;
+map<ip4Addr_t, macAddr_t> ipv4_to_mac;
+
+
+transpipe link_monitor(inout packet_t<headers_t, metadata_t> pkt, in tm_t tm) {
+    bit<32>[MAX_PORTS] byte_cnt_reg;
+    bit<time_t>[MAX_PORTS] last_time_reg;
+    bit<32> byte_cnt;
+    bit<32> new_byte_cnt;
+    time_t last_time;
+    time_t cur_time = tm.egress_global_timestamp;
+    // increment byte cnt for this packet's port
+    byte_cnt = byte_cnt_reg[pkt.egress_port];
+    byte_cnt = byte_cnt + pkt.packet_length;
+    // reset the byte count when a probe packet passes through
+    new_byte_cnt = (pkt.hdr.probe.isValid()) ? 0 : byte_cnt;
+    byte_cnt_reg[pkt.egress_port] = new_byte_cnt;
+
+    pkt.hdr.probe.hop_cnt = hdr.probe.hop_cnt + 1;
+    if (pkt.hdr.probe.isValid()) {
+        pkt.hdr.probe_data.push_front(1);
+        pkt.hdr.probe_data[0].setValid();
+        if (pkt.hdr.probe.hop_cnt == 1) {
+            pkt.hdr.probe_data[0].bos = 1;
+        }
+        else {
+            pkt.hdr.probe_data[0].bos = 0;
+        }
+        pkt.hdr.probe_data[0].swid = pkt.ingress_swport[0];
+        pkt.hdr.probe_data[0].port = (bit<8>)pkt.egress_port;
+        pkt.hdr.probe_data[0].byte_cnt = byte_cnt;
+        // read / update the last_time_reg
+        last_time = last_time_reg[(bit<32>)pkt.egress_port];
+        last_time_reg[(bit<32>)pkt.egress_port] = cur_time;
+        pkt.hdr.probe_data[0].last_time = last_time;
+        pkt.hdr.probe_data[0].cur_time = cur_time;
+    }
+}
+
+transpipe dec_ttl(inout packet_t<headers_t, metadata_t> pkt, in tm_t tm) {
+    pkt.hdr.ipv4.ttl--;
+}
+
+transpipe rewrite_mac(inout packet_t<headers_t, metadata_t> pkt, in tm_t tm) {
+    pkt.hdr.ethernet.dstAddr = ipv4_to_mac[pkt.hdr.ipv4.dst];
+}
+
+
+ingresspipe inpipe(inout packet_t<headers_t, metadata_t> pkt) {
+    auto path = custom_path(pkt.ingress_swport);
+    pkt.egress_path = path;
+}
+
+label 's1:p1' {
+    MyParser,
+    inpipe,
+    (dec_ttl + link_monitor)*, rewrite_mac
+}

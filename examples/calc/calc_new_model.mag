@@ -1,0 +1,50 @@
+/** dependencies include **/
+#include <core.mag>
+#include <headers.mag>
+#incluee <parser.mag>
+
+map<bit<48>, swport_t> mac_to_swport;
+
+ingresspipe inpipe(inout packet_t<headers_t, metadata_t> pkt) {
+    path = shortest_path(pkt.ingress_swport, mac_to_swport[pkt.hdr.ethernet.dstAddr]);
+    pkt.egress_path = path;
+}
+
+transpipe reflect(inout packet_t<headers_t, metadata_t> pkt, in tm_t tm) {
+    /* Swap the MAC addresses */
+    auto tmp = pkt.hdr.ethernet.dstAddr;
+    pkt.hdr.ethernet.dstAddr = hdr.ethernet.srcAddr;
+    pkt.hdr.ethernet.srcAddr = tmp;
+}
+
+transpipe calc(inout packet_t<headers_t, metadata_t> pkt, in tm_t tm) {
+    switch(hdr.p4calc.op) {
+        P4CALC_PLUS: {
+            pkt.hdr.p4calc.res = pkt.hdr.p4calc.operand_a + pkt.hdr.p4calc.operand_b;
+        }
+        P4CALC_MINUS: {
+            pkt.hdr.p4calc.res = pkt.hdr.p4calc.operand_a - pkt.hdr.p4calc.operand_b;
+        }
+        P4CALC_AND: {
+            pkt.hdr.p4calc.res = pkt.hdr.p4calc.operand_a & pkt.hdr.p4calc.operand_b;
+        }
+        P4CALC_OR: {
+            pkt.hdr.p4calc.res = pkt.hdr.p4calc.operand_a | pkt.hdr.p4calc.operand_b;
+        }
+        P4CALC_CARET: {
+            pkt.hdr.p4calc.res = pkt.hdr.p4calc.operand_a ^ pkt.hdr.p4calc.operand_b;
+        }
+    }
+}
+
+label 'external_ingress' {
+    MyParser,
+    inpipe,
+    .*, reflect
+}
+
+label 'calc_ingress' {
+    MyParser,
+    inpipe,
+    calc
+}

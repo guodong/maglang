@@ -1,0 +1,43 @@
+#include <core.mag>
+#include <headers.mag>
+#incluee <parser.mag>
+
+extern path_t shortest_path(swport_t src, swpport_t dst);
+
+/** global data structures **/
+/** these could be set by another function, but finally it must has value as following **/
+map<ip4Addr_t, bit<16>> ip_to_dstid;
+map<bit<16>, swport_t> dstid_to_swport;
+map<ip4Addr_t, macAddr_t> ipv4_to_mac;
+
+ingresspipe inpipe(inout packet_t<headers_t, metadata_t> pkt) {
+    auto dst_id = ip_to_dstid.lpm(pkt.hdr.ipv4.dst)
+    auto path = shortest_path(pkt.ingress_swport, dstid_to_swport[dst_id]);
+    pkt.egress_path = path;
+}
+
+transpipe encap(inout packet_t<headers_t, metadata_t> pkt, in tm_t tm) {
+    auto dst_id = ip_to_dstid.lpm(pkt.hdr.ipv4.dst)
+    pkt.hdr.myTunnel.dst_id = dst_id;
+    pkt.hdr.myTunnel.setValid();
+}
+
+// transmition pipeline
+transpipe dec_ttl(inout packet_t<headers_t, metadata_t> pkt, in tm_t tm) {
+    pkt.hdr.ipv4.ttl--;
+}
+
+transpipe decap(inout packet_t<headers_t, metadata_t> pkt, in tm_t tm) {
+    pkt.hdr.myTunnel.setInvalid()
+}
+
+transpipe rewrite_mac(inout packet_t<headers_t, metadata_t> pkt, in tm_t tm) {
+    // rewrite mac at last hop
+    pkt.hdr.ethernet.dstAddr = ipv4_to_mac[pkt.hdr.ipv4.dst];
+}
+
+label 'external_ingress' {
+    MyParser,
+    inpipe,
+    encap + dec_ttl, dec_ttl*, decap + dec_ttl + rewrite_mac
+}

@@ -58,6 +58,8 @@ struct tm_t {
     bit<19> enq_qdepth;
     bit<32> deq_timedelta;
     bit<19> deq_qdepth;
+    bit<48> ingress_global_timestamp;
+    bit<48> egress_global_timestamp;
 }
 
 /***** hash function *****/

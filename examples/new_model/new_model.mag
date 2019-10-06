@@ -1,0 +1,36 @@
+#include <core.mag>
+#include <headers.mag>
+#incluee <parser.mag>
+
+// ingress pipeline
+ingresspipe ip(inout packet_t<headers_t, metadata_t> pkt){
+    auto dst_id = ip_to_dstid.lpm(pkt.hdr.ipv4.dst)
+    pkt.hdr.myTunnel.dst_id = dst_id;
+    pkt.hdr.myTunnel.setValid();
+    auto path = shortest_path(pkt.ingress_swport, dstid_to_swport[dst_id]);
+    pkt.egress_path = path;
+}
+
+// transmition pipeline
+transpipe tp1(inout packet_t<headers_t, metadata_t> pkt, in tm_t tm) {
+    pkt.hdr.ipv4.ttl--;
+
+    // read queue buffer info and modify pkt
+    if (pkt.hdr.ipv4.ecn == 1 || pkt.hdr.ipv4.ecn == 2){
+        if (tm.enq_qdepth >= ECN_THRESHOLD){
+            pkt.hdr.ipv4.ecn = 3;
+        }
+    }
+}
+transpipe tp2(inout packet_t<headers_t, metadata_t> pkt, in tm_t tm) {
+    pkt.hdr.ipv4.ttl--;
+    pkt.hdr.myTunnel.setInvalid();
+    pkt.hdr.ethernet.dstAddr = ipv4_to_mac[pkt.hdr.ipv4.dst];
+}
+
+label 'external_ingress' {
+    myParser;
+    ip;
+
+    [tp1]* tp2@{swid}
+}

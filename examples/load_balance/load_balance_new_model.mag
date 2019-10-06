@@ -1,0 +1,53 @@
+/** dependencies include **/
+#include <core.mag>
+#include <headers.mag>
+#incluee <parser.mag>
+
+/** extern functions, implemented in external codes **/
+extern path_t shortest_path(swport_t src, swpport_t dst);
+
+/** global data structures **/
+map<ip4Addr_t, swport_t> ip_to_swport = {
+    ip2int('10.0.1.1'): ('h1', 'eth0'),
+    ip2int('10.0.2.2'): ('h2', 'eth0'),
+    ip2int('10.0.3.3'): ('h3', 'eth0')
+};
+map<ip4Addr_t, macAddr_t> ipv4_to_mac = {
+    ip2int('10.0.1.1'): mac2int('08:00:00:00:01:11'),
+    ip2int('10.0.2.2'): mac2int('08:00:00:00:02:22'),
+    ip2int('10.0.3.3'): mac2int('08:00:00:00:03:33'),
+    ip2int('10.0.4.4'): mac2int('08:00:00:00:04:44')
+}
+
+transpipe dec_ttl(inout packet_t<headers_t, metadata_t> pkt, in tm_t tm) {
+    pkt.hdr.ipv4.ttl--;
+}
+
+transpipe rewrite_mac(inout packet_t<headers_t, metadata_t> pkt, in tm_t tm) {
+    pkt.hdr.ethernet.dstAddr = ipv4_to_mac[pkt.hdr.ipv4.dst];
+}
+
+
+ingresspipe inpipe(inout packet_t<headers_t, metadata_t> pkt) {
+    pkt.meta.ecmp_select = hash(HashAlgorithm.crc16, 0,
+	    { pkt.hdr.ipv4.srcAddr,
+	      pkt.hdr.ipv4.dstAddr,
+              pkt.hdr.ipv4.protocol,
+              pkt.hdr.tcp.srcPort,
+              pkt.hdr.tcp.dstPort },
+	    2);
+
+    if (pkt.meta.ecpm_select == 0) {
+        auto path = shortest_path(pkt.ingress_swport, ip_to_swport.lpm('10.0.2.2'));
+    } else {
+        auto path = shortest_path(pkt.ingress_swport, ip_to_swport.lpm('10.0.3.3'));
+    }
+
+    pkt.egress_path = path;
+}
+
+label 'external_ingress' {
+    MyParser,
+    inpipe,
+    dec_ttl*, rewrite_mac
+}

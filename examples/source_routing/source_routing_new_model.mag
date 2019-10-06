@@ -1,0 +1,28 @@
+/** dependencies include **/
+#include <core.mag>
+#include <headers.mag>
+#incluee <parser.mag>
+
+extern path_t sr_hdr_to_path(srcRoute_t srRoute);
+
+
+ingresspipe inpipe(inout packet_t<headers_t, metadata_t> pkt) {
+    auto path = sr_hdr_to_path(pkt.hdr.srcRoute);
+    pkt.egress_path = path;
+}
+
+transpipe sr_routing(inout packet_t<headers_t, metadata_t> pkt, in tm_t tm) {
+    if (pkt.hdr.srcRoutes[0].isValid()) {
+        pkt.hdr.srcRoutes.pop_front(1);
+    }
+}
+
+transpipe dec_ttl(inout packet_t<headers_t, metadata_t> pkt, in tm_t tm) {
+    pkt.hdr.ipv4.ttl--;
+}
+
+label 'external_ingress' {
+    MyParser,
+    inpipe,
+    (dec_ttl + sr_routing)*
+}

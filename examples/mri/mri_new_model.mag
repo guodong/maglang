@@ -1,0 +1,59 @@
+/** dependencies include **/
+#include <core.mag>
+#include <headers.mag>
+#incluee <parser.mag>
+
+/** extern functions, impleneted in external codes **/
+extern path_t shortest_path(swport_t src, swpport_t dst);
+
+/** global data structures **/
+/** these could be set by another function, but finally it must has value as following **/
+map<ip4Addr_t, swport_t> ip_to_swport = {
+    ip2int('10.0.1.1'): ('h1', 'eth0'),
+    ip2int('10.0.1.11'): ('h11', 'eth0'),
+    ip2int('10.0.2.2'): ('h2', 'eth0'),
+    ip2int('10.0.2.22'): ('h22', 'eth0'),
+    ip2int('10.0.3.3'): ('h3', 'eth0')
+};
+map<ip4Addr_t, macAddr_t> ipv4_to_mac = {
+    ip2int('10.0.1.1'): mac2int('08:00:00:00:01:01'),
+    ip2int('10.0.1.11'): mac2int('08:00:00:00:01:11'),
+    ip2int('10.0.2.2'): mac2int('08:00:00:00:02:02'),
+    ip2int('10.0.2.22'): mac2int('08:00:00:00:02:22'),
+    ip2int('10.0.3.3'): mac2int('08:00:00:00:03:03')
+}
+
+transpipe mri(inout packet_t<headers_t, metadata_t> pkt, in tm_t tm) {
+    if (pkt.hdr.mri.isValid()) {
+        pkt.hdr.mri.count = pkt.hdr.mri.count + 1;
+        pkt.hdr.swtraces.push_front(1);
+        pkt.hdr.swtraces[0].setValid();
+        pkt.hdr.swtraces[0].swid = bit<32>(pkt.ingress_swport[0]);
+        pkt.hdr.swtraces[0].qdepth = (qdepth_t)tm.deq_qdepth;
+
+        pkt.hdr.ipv4.ihl = hdr.ipv4.ihl + 2;
+        pkt.hdr.ipv4_option.optionLength = pkt.hdr.ipv4_option.optionLength + 8;
+	pkt.hdr.ipv4.totalLen = pkt.hdr.ipv4.totalLen + 8;
+    }
+}
+
+transpipe dec_ttl(inout packet_t<headers_t, metadata_t> pkt, in tm_t tm) {
+    pkt.hdr.ipv4.ttl--;
+}
+
+transpipe rewrite_mac(inout packet_t<headers_t, metadata_t> pkt, in tm_t tm) {
+    pkt.hdr.ethernet.dstAddr = ipv4_to_mac[pkt.hdr.ipv4.dst];
+}
+
+
+@label('external_ingress')
+void on_pkt(inout packet_t<headers_t, metadata_t> pkt) {
+    auto path = shortest_path(pkt.ingress_swport, ip_to_swport.lpm(pkt.hdr.ipv4.dst));
+    pkt.egress_path = path;
+}
+
+label 'external_ingress' {
+    MyParser,
+    inpipe,
+    (mri + dec_ttl)*, rewrite_mac + dec_ttl
+}
