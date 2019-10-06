@@ -34,13 +34,11 @@ transpipe rewrite_mac(inout packet_t<headers_t, metadata_t> pkt, in tm_t tm) {
 }
 
 label 'external_ingress' {
-    MyParser;
-    ip;
-    [dec_ttl]*[dec_ttl + rewrite_mac];
+    MyParser,
+    ip,
+    (dec_ttl)*, (dec_ttl & rewrite_mac)
 }
 
-
-([tp1][tp2])*
 
 
 

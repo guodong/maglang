@@ -39,5 +39,5 @@ transpipe rewrite_mac(inout packet_t<headers_t, metadata_t> pkt, in tm_t tm) {
 label 'external_ingress' {
     MyParser,
     inpipe,
-    encap + dec_ttl, dec_ttl*, decap + dec_ttl + rewrite_mac
+    encap & dec_ttl, dec_ttl*, decap & dec_ttl & rewrite_mac
 }

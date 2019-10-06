@@ -64,5 +64,5 @@ ingresspipe inpipe(inout packet_t<headers_t, metadata_t> pkt) {
 label 's1:p1' {
     MyParser,
     inpipe,
-    (dec_ttl + link_monitor)*, rewrite_mac
+    (dec_ttl & link_monitor)*, rewrite_mac
 }

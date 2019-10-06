@@ -75,5 +75,5 @@ ingresspipe inpipe(inout packet_t<headers_t, metadata_t> pkt) {
 label 'external_ingress' {
     MyParser,
     inpipe,
-    dec_ttl*, (dec_ttl + firewall)@'fw_sw', dec_ttl*, dec_ttl + rewrite_mac
+    dec_ttl*, (dec_ttl & firewall)@'fw_sw', dec_ttl*, dec_ttl & rewrite_mac
 }
