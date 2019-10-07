@@ -1,0 +1,9 @@
+/** extern functions, impleneted in external codes **/
+extern path_t shortest_path(swport_t src, swpport_t dst);
+extern path_t spanning_tree(swport_t root);
+
+/** global data structures **/
+/** these could be set by another function, but finally it must has value as following **/
+map<ip4Addr_t, swport_t> ip_to_swport;
+map<ip4Addr_t, macAddr_t> ipv4_to_mac;
+map<macAddr_t, swport_t> mac_to_swport；
