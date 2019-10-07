@@ -14,11 +14,15 @@ map<ip4Addr_t, macAddr_t> ipv4_to_mac;
 
 transpipe check_ecn(inout packet_t<headers_t, metadata_t> pkt, in tm_t tm) {
     pkt.hdr.ipv4.ttl--;
-    if (hdr.ipv4.ecn == 1 || hdr.ipv4.ecn == 2){
+    if (pkt.hdr.ipv4.ecn == 1 || pkt.hdr.ipv4.ecn == 2){
         if (tm.enq_qdepth >= ECN_THRESHOLD){
             pkt.hdr.ipv4.ecn = 3;
         }
     }
+}
+
+transpipe dec_ttl(inout packet_t<headers_t, metadata_t> pkt, in tm_t tm) {
+    pkt.hdr.ipv4.ttl--;
 }
 
 transpipe rewrite_mac(inout packet_t<headers_t, metadata_t> pkt, in tm_t tm) {
@@ -34,5 +38,5 @@ ingresspipe inpipe(inout packet_t<headers_t, metadata_t> pkt) {
 label 'external_ingress' {
     MyParser,
     inpipe,
-    check_ecn*, rewrite_mac
+    [check_ecn & dec_ttl]*, rewrite_mac & dec_ttl
 }

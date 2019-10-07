@@ -55,5 +55,5 @@ void on_pkt(inout packet_t<headers_t, metadata_t> pkt) {
 label 'external_ingress' {
     MyParser,
     inpipe,
-    (mri & dec_ttl)*, rewrite_mac & dec_ttl
+    [mri & dec_ttl]*, rewrite_mac & dec_ttl
 }

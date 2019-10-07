@@ -18,27 +18,51 @@ map<ip4Addr_t, swport_t> ip_to_swport;
 map<ip4Addr_t, macAddr_t> ipv4_to_mac;
 
 // ingress pipeline
-ingresspipe ip(inout packet_t<headers_t, metadata_t> pkt){
+path_control ip(inout packet_t<headers_t, metadata_t> pkt) {
     auto path = shortest_path(pkt.ingress_swport, ip_to_swport[pkt.hdr.ipv4.dst]);
     pkt.egress_path = path;
 }
 
 // transmition pipeline
-transpipe dec_ttl(inout packet_t<headers_t, metadata_t> pkt, in tm_t tm) {
+processing_block dec_ttl(inout packet_t<headers_t, metadata_t> pkt, in tm_t tm) {
     pkt.hdr.ipv4.ttl--;
 }
 
-transpipe rewrite_mac(inout packet_t<headers_t, metadata_t> pkt, in tm_t tm) {
+processing_block rewrite_mac(inout packet_t<headers_t, metadata_t> pkt, in tm_t tm) {
     // rewrite mac at last hop
     pkt.hdr.ethernet.dstAddr = ipv4_to_mac[pkt.hdr.ipv4.dst];
 }
 
 label 'external_ingress' {
-    MyParser,
-    ip,
-    (dec_ttl)*, (dec_ttl & rewrite_mac)
+    parser=MyParser,
+    path_control=ip,
+    packet_processing_rule=([dec_ttl]*, [dec_ttl & rewrite_mac])
 }
 
+/*
+TODO:
+    programming model
+    fboss use case
+    compiler
+    * incremental depoloyment
+    * fault tolerance
+    * scaling
+    what's new/cool things can be done by magellan
+    debugger api support reliablity
+
+    completeness - arp dhcp ipv4/6 lldp
+    fault tolerance, how to handle fast reroute
+    scaling
+
+non directional feedback
+path_control -> tree, route_builder
+fix name packet_processing_rule
+
+requirements:
+    first, second, second last, last, specific index
+    once anywhere, all
+    specific device(type)
+    issue to think about: at least/most once, exact once
 
 
 
