@@ -1,4 +1,12 @@
+#define  DHCP_REQUEST = 1
+#define  DHCP_PORT_SERVER = 67
+#define  DHCP_PORT_CLIENT = 68
+#define  MAX_LLDP_DU = 100
+
 const bit<16> TYPE_IPV4 = 0x800;
+const bit<16> TYPE_ARP = 0x0806;
+const bit<16> TYPE_LLDP = 0x88cc;
+
 /*************************************************************************
 *********************** H E A D E R S  ***********************************
 *************************************************************************/
@@ -11,6 +19,16 @@ header ethernet_t {
     macAddr_t dstAddr;
     macAddr_t srcAddr;
     bit<16>   etherType;
+}
+
+header lldp_tlv_t {
+    bit<7> type;
+    bit<9> length;
+    varbit<4088> value;
+}
+
+header lldp_t {
+    lldp_tlv_t[MAX_LLDP_DP] tlv;
 }
 
 header ipv4_t {
@@ -28,11 +46,52 @@ header ipv4_t {
     ip4Addr_t dstAddr;
 }
 
+header arp_t {
+    bit<16>   hwType;
+    bit<16>   protoType;
+    bit<8>    hwAddrLen;
+    bit<8>    protoAddrLen;
+    bit<16>   opcode;
+    bit<48>   macSrcAddr;
+    bit<32>   ipSrcAddr;
+    bit<48>   macDstAddr;
+    bit<32>   ipDstAddr;
+}
+
+header dhcp_t {
+    bit<8>    op;
+    bit<8>    htype;
+    bit<8>    hlen;
+    bit<8>    hops;
+    bit<32>   transId;
+    bit<16>    second;
+    bit<16>    flag;
+    bit<32>    clientAddr;
+    bit<32>    assignedAddr;
+    bit<32>    sAddr;
+    bit<32>    gAddr;
+    bit<128>   clientMacAddr;
+    bit<512>   sname;
+    bit<1024>  file;
+    varbit<64> options;
+}
+
+header udp_t {
+    bit<16>    srcPort;
+    bit<16>    dstPort;
+    bit<16>    len;
+    bit<16>    checksum;
+}
+
 struct metadata_t {
     /* empty */
 }
 
 struct headers_t {
     ethernet_t   ethernet;
+    lldp_t       lldp;
     ipv4_t       ipv4;
+    arp_t        arp;
+    udp_t        udp;
+    dhcp_t       dhcp;
 }

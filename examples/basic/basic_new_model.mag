@@ -16,28 +16,102 @@ extern path_t shortest_path(swport_t src, swpport_t dst);
 /** these could be set by another function, but finally it must has value as following **/
 map<ip4Addr_t, swport_t> ip_to_swport;
 map<ip4Addr_t, macAddr_t> ipv4_to_mac;
+map<macAddr_t, swport_t> mac_to_swport；
 
-// ingress pipeline
-path_control ip(inout packet_t<headers_t, metadata_t> pkt) {
-    auto path = shortest_path(pkt.ingress_swport, ip_to_swport[pkt.hdr.ipv4.dst]);
-    pkt.egress_path = path;
+// route builder
+path_control pc(inout packet_t<headers_t, metadata_t> pkt) {
+    if (pkt.hdr.arp.isValid()) {
+        try {
+            if !(pkt.hdr.arp.ipDstAddr in ipv4_to_mac) { // arp not learned
+                throw 'mac unknown exception';
+            }
+            pkt.egress_path = shortest_path(pkt.ingress_swport, ip_to_swport[pkt.hdr.arp.ipSrcAddr]);
+        } catch(exception_t e) {
+            if (e.reason == 'mac unknown exception') {
+                // send arp to dst host
+                auto path = shortest_path(pkt.ingress_swport, ip_to_swport[pkt.hdr.arp.ipDstAddr])
+                pkt.egress_path = path;
+            }
+        }
+    } else if (pkt.hdr.dhcp.isValid()) {
+        if (pkt.hdr.dhcp.op == DHCP_REQUEST) { // dhcp request
+            pkt.egress_path = spanning_tree(pkt.ingress_swport);  // broadcast to dhcp servers
+        } else { // dhcp offer
+            pkt.egress_path = shortest_path(pkt.ingress_swport, mac_to_swport[pkt.hdr.dhcp.clientMacAddr]);
+        }
+    } else if (pkt.hdr.ipv4.isValid()) {
+        auto path = shortest_path(pkt.ingress_swport, ip_to_swport[pkt.hdr.ipv4.dst]);
+        pkt.egress_path = path;
+    } else {
+        pkt.egress_path = drop;
+    }
 }
 
-// transmition pipeline
+processing_block handle_dhcp(inout packet_t<headers_t, metadata_t> pkt, in tm_t tm) {
+    assert(pkt.hdr.dhcp.isValid());
+    // learn arp
+    ipv4_to_mac[pkt.hdr.dhcp.assignedAddr] = pkt.hdr.dhcp.clientMacAddr;
+}
+
+processing_block handle_arp(inout packet_t<headers_t, metadata_t> pkt, in tm_t tm) {
+    assert(pkt.hdr.arp.isValid());
+    assert(pkt.hdr.arp.opcode = ARP_REQUEST;
+    // learn arp
+    ipv4_to_mac[pkt.hdr.arp.ipSrcAddr] = pkt.hdr.arp.macSrcAddr;
+
+    try {
+        // build arp response
+        if !(pkt.hdr.arp.ipDstAddr in ipv4_to_mac) {
+            throw 'cannot find arp dst';
+        }
+        pkt.hdr.arp.macSrcAddr = ipv4_to_mac[pkt.hdr.arp.ipDstAddr];
+        swap(pkt.hdr.arp.ipSrcAddr, pkt.hdr.arp.ipDstAddr);
+        pkt.hdr.arp.macDstAddr = pkt.hdr.arp.macSrcAddr;
+        pkt.hdr.arp.opcode = ARP_RESPONSE;
+    } catch (exception_t e) {
+        log(e.reason);
+    }
+}
+
+processing_block reflect_l2(inout packet_t<headers_t, metadata_t> pkt, in tm_t tm) {
+    /* swap the MAC addresses */
+    swap(pkt.hdr.ethernet.srcAddr, pkt.hdr.ethernet.dstAddr);
+}
+
 processing_block dec_ttl(inout packet_t<headers_t, metadata_t> pkt, in tm_t tm) {
+    assert(pkt.hdr.ipv4.isValid());
+    assert(pkt.hdr.ipv4.ttl > 0);
     pkt.hdr.ipv4.ttl--;
 }
 
 processing_block rewrite_mac(inout packet_t<headers_t, metadata_t> pkt, in tm_t tm) {
     // rewrite mac at last hop
+    assert(pkt.hdr.ipv4.isValid());
+    pkt.hdr.ethernet.dstAddr = ipv4_to_mac[pkt.hdr.ipv4.dst];
+}
+
+processing_block handle_lldp(inout packet_t<headers_t, metadata_t> pkt, in tm_t tm) {
+    // rewrite mac at last hop
+    assert(pkt.hdr.ipv4.isValid());
     pkt.hdr.ethernet.dstAddr = ipv4_to_mac[pkt.hdr.ipv4.dst];
 }
 
 label 'external_ingress' {
     parser=MyParser,
-    path_control=ip,
-    packet_processing_rule=([dec_ttl]*, [dec_ttl & rewrite_mac])
+    path_control=pc,
+    packet_processing_rule=([dec_ttl]*, [dec_ttl & rewrite_mac & handle_arp & reflect_l2 & handle_dhcp])
 }
+
+label 'any' {
+    parser=MyParser,
+    path_control=default_pc,
+    packet_processing_rule=(handle_lldp*)
+}
+
+
+
+
+
 
 /*
 TODO:
