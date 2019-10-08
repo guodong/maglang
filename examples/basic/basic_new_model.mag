@@ -3,7 +3,7 @@
 #include <parser.mag>
 #include <defines.mag>
 
-/* processing blocks */
+/********** processing blocks **********/
 // learn arp by dhcp packet
 processing_block learn_arp_by_dhcp(inout packet_t<headers_t, metadata_t> pkt, in tm_t tm) {
     assert(pkt.hdr.dhcp.isValid());
@@ -16,9 +16,9 @@ processing_block learn_arp_by_arp(inout packet_t<headers_t, metadata_t> pkt, in 
 }
 
 // arp response
-processing_block response_arp(inout packet_t<headers_t, metadata_t> pkt, in tm_t tm) {
+processing_block response_arp(inout packet_t<headers_t> pkt, in tm_t tm) {
     assert(pkt.hdr.arp.isValid());
-    assert(pkt.hdr.arp.opcode = ARP_REQUEST;
+    assert(pkt.hdr.arp.opcode = ARP_REQUEST);
     // build arp response
     pkt.hdr.arp.macSrcAddr = ipv4_to_mac[pkt.hdr.arp.ipDstAddr];
     swap(pkt.hdr.arp.ipSrcAddr, pkt.hdr.arp.ipDstAddr);
@@ -44,7 +44,7 @@ processing_block rewrite_mac(inout packet_t<headers_t, metadata_t> pkt, in tm_t 
     pkt.hdr.ethernet.dstAddr = ipv4_to_mac[pkt.hdr.ipv4.dst];
 }
 
-/* path controls */
+/********** path controls **********/
 path_control l3_forwarding(inout packet_t<headers_t> pkt) {
     try {
         pkt.egress_path = shortest_path(pkt.ingress_swport, ip_to_swport[pkt.hdr.ipv4.dst]);
@@ -57,7 +57,7 @@ path_control l3_forwarding(inout packet_t<headers_t> pkt) {
 path_control arp(inout packet_t<headers_t, metadata_t> pkt) {
     try {
         pkt.egress_path = shortest_path(pkt.ingress_swport, ip_to_swport[pkt.hdr.arp.ipSrcAddr]);
-        pkt.processing_rule = (learn_arp_by_arp & response_arp), .*;
+        pkt.processing_rule = [learn_arp_by_arp & response_arp], .*;
     } catch(INVALID_KEY e) {
         pkt.egress_path = spanning_tree(pkt.ingress_swport);
         pkt.processing_rule = learn_arp_by_arp, .*;
@@ -78,12 +78,11 @@ path_control dhcp(inout packet_t<headers_t> pkt) {
     }
 }
 
-program {
-    'external_ingress' => {
-        parser=MyParser,
-        path_control=(l3_forwarding | arp | dhcp)
-    }
+thread {
+    ingestion_port='external_ingress'
+        => parser=MyParser, program=(l3_forwarding | arp | dhcp)
 }
+
 
 
 
